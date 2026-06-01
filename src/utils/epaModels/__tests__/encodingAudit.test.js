@@ -12,7 +12,7 @@ import teamSeasons from '../../../data/teamSeasons.json'
 describe('Field encoding audit (Phase 0)', () => {
   const audit = auditFieldEncoding(teamSeasons)
 
-  it('runs with at least 12 valid rows (real Ivy 2022–25 data has ~32)', () => {
+  it('runs with at least 12 valid rows (real conference data)', () => {
     expect(audit.ok).toBe(true)
     expect(audit.n).toBeGreaterThanOrEqual(12)
   })

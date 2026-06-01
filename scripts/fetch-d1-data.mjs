@@ -1,18 +1,18 @@
 /**
  * fetch-d1-data.mjs — pull D1-wide four-factor data from Barttorvik.
  *
- * Companion to fetch-data.mjs (which is Ivy-only). Used to produce a global
- * training set for EPA coefficient fitting — n grows from 32 (Ivy only) to
- * ~350 schools × 4 years ≈ 1400, which dissolves the TOV/ORB collinearity
- * that forces the constrained model on the Ivy-only fit.
+ * Companion to fetch-data.mjs (which is Big Ten-only). Used to produce a global
+ * training set for EPA coefficient fitting — n grows from the conference-only
+ * handful to ~350 schools × 4 years ≈ 1400, which dissolves the TOV/ORB
+ * collinearity that forces the constrained model on the conference-only fit.
  *
  * Run:    npm run fetch-d1
  * Output: src/data/d1TeamSeasons.json
  *
  * Schema is a strict subset of teamSeasons.json: only the columns the EPA
  * pipeline actually consumes, plus identification fields. We intentionally
- * skip player data and conference records — those are Ivy-specific and not
- * needed to fit league-wide four-factor coefficients.
+ * skip player data and conference records — those are conference-specific and
+ * not needed to fit league-wide four-factor coefficients.
  */
 
 import { writeFileSync, mkdirSync } from 'fs'

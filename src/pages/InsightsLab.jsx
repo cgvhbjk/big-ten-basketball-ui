@@ -555,7 +555,7 @@ function SchemeCombinedCard({ school, years }) {
         <div style={{ paddingTop: 10, borderTop: `1px solid ${T.border}`,
           marginBottom: years.length > 1 ? 12 : 0, display: 'flex', gap: 16 }}>
           {[
-            ['Ivy Win%', (() => { const r = archetypeLeagueWinRates[combinedArch.archetype]; return r ? `${r.avg}% (n=${r.n})` : '—' })()],
+            ['Conf Win%', (() => { const r = archetypeLeagueWinRates[combinedArch.archetype]; return r ? `${r.avg}% (n=${r.n})` : '—' })()],
             ['AdjOE', avgSeason.adjoe?.toFixed(1)],
             ['AdjDE', avgSeason.adjde?.toFixed(1)],
             ['PPP',   avgSeason.ppp?.toFixed(1)],
@@ -603,7 +603,7 @@ function SchemeCombinedCard({ school, years }) {
 
 function SchemeClassifierPanel() {
   const { saveScheme } = useInsightStore()
-  const [school,       setSchool]       = useState('yale')
+  const [school,       setSchool]       = useState('michigan')
   const [activeYears,  setActiveYears]  = useState(new Set([2022, 2023, 2024, 2025]))
 
   function toggleYear(y) {
@@ -856,7 +856,7 @@ function SchemePanel() {
         return [
           offData[0] ? {
             label: 'Best Off. Style',
-            text: `${offData[0].scheme} teams post the highest Ivy win rate (${(offData[0].avgWinPct * 100).toFixed(0)}%, n=${offData[0].n}), ${offData[offData.length-1].scheme} teams the lowest (${(offData[offData.length-1].avgWinPct * 100).toFixed(0)}%). Scheme alone explains meaningful win-rate variance.`,
+            text: `${offData[0].scheme} teams post the highest conference win rate (${(offData[0].avgWinPct * 100).toFixed(0)}%, n=${offData[0].n}), ${offData[offData.length-1].scheme} teams the lowest (${(offData[offData.length-1].avgWinPct * 100).toFixed(0)}%). Scheme alone explains meaningful win-rate variance.`,
             color: '#f59e0b',
           } : null,
           defData[0] ? {
@@ -871,7 +871,7 @@ function SchemePanel() {
             if (!spread || !bestOff || !bestDef) return null
             return {
               label: 'Combined Edge',
-              text: `Teams running ${bestOff.scheme} offense AND ${bestDef.scheme} defense represent the optimal scheme combination in recent Ivy data. The offensive win-rate spread across schemes is ${spread} percentage points — scheme identity matters, but talent within the scheme matters more.`,
+              text: `Teams running ${bestOff.scheme} offense AND ${bestDef.scheme} defense represent the optimal scheme combination in recent Big Ten data. The offensive win-rate spread across schemes is ${spread} percentage points — scheme identity matters, but talent within the scheme matters more.`,
               color: '#10b981',
             }
           })(),
@@ -960,7 +960,7 @@ const MATCHUP_Y_METRICS = [
 
 const rosterAggsWeighted     = buildRosterAggregatesWeighted(players)
 
-// League-wide average win% by archetype across all 32 team-seasons
+// League-wide average win% by archetype across all team-seasons
 const archetypeLeagueWinRates = (() => {
   const result = {}
   for (const ts of teamSeasons) {
@@ -1083,7 +1083,7 @@ function RosterBioPanel() {
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.accentSoft }}>Physical Differentials → Game Outcomes</div>
           <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>
-            Game-level position physical differentials · {matchupRel.n} Ivy matchups · 2022–2025
+            Game-level position physical differentials · {matchupRel.n} conference matchups · 2022–2025
           </div>
         </div>
 
@@ -1233,7 +1233,7 @@ function RosterBioPanel() {
         {
           label: 'OLS Summary',
           text: positionPhysicalImpact
-            ? `Position-level physical diffs explain ${(positionPhysicalImpact.r2 * 100).toFixed(0)}% of game score variance across ${positionPhysicalImpact.n} Ivy matchups. Guard weight (r = ${positionPhysicalImpact.pearson.guardWeight > 0 ? '+' : ''}${positionPhysicalImpact.pearson.guardWeight}) is the strongest trainable signal — more so than center height (r = ${positionPhysicalImpact.pearson.bigHeight}).`
+            ? `Position-level physical diffs explain ${(positionPhysicalImpact.r2 * 100).toFixed(0)}% of game score variance across ${positionPhysicalImpact.n} conference matchups. Guard weight (r = ${positionPhysicalImpact.pearson.guardWeight > 0 ? '+' : ''}${positionPhysicalImpact.pearson.guardWeight}) is the strongest trainable signal — more so than center height (r = ${positionPhysicalImpact.pearson.bigHeight}).`
             : 'Not enough game data to compute OLS.',
           color: T.amber,
         },
@@ -1244,7 +1244,7 @@ function RosterBioPanel() {
         },
         {
           label: 'How to Use',
-          text: 'Select a position differential on the X-axis and point differential on Y. Look for r > 0.25 as evidence of physical leverage in Ivy-specific matchups.',
+          text: 'Select a position differential on the X-axis and point differential on Y. Look for r > 0.25 as evidence of physical leverage in conference matchups.',
           color: T.accentSoft,
         },
       ]} />
@@ -1398,7 +1398,7 @@ export default function InsightsLab() {
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
         title="Insights Lab"
-        subtitle={`32 team-seasons · 458 player-seasons · 236 Ivy games · ${ALL_METRICS_FLAT.length} metrics · 2022–2025`}
+        subtitle={`${teamSeasons.length} team-seasons · ${players.length} player-seasons · ${games.filter(g => g.conf_game).length} conference games · ${ALL_METRICS_FLAT.length} metrics · 2022–2025`}
         stats={[]}
         controls={
           <div style={{ display: 'flex', gap: 4 }}>
@@ -1417,7 +1417,7 @@ export default function InsightsLab() {
       {tab === 'biodata'     && <RosterBioPanel />}
 
       <MethodologyPanel
-        howItWorks="Insights Lab computes Pearson correlations between team-season metrics and win%, surfaces statistically significant relationships, and scores each insight by sample size and effect size. Scheme classification uses four-factor and tempo thresholds calibrated to Ivy League distributions. Biodata analysis tests whether physical roster attributes (height, experience, position mix) correlate with performance outcomes."
+        howItWorks="Insights Lab computes Pearson correlations between team-season metrics and win%, surfaces statistically significant relationships, and scores each insight by sample size and effect size. Scheme classification uses four-factor and tempo thresholds derived from the conference distribution. Biodata analysis tests whether physical roster attributes (height, experience, position mix) correlate with performance outcomes."
         sections={[
           { title: 'Efficiency',        keys: ['adjoe', 'adjde', 'net_efficiency', 'barthag'] },
           { title: 'Four Factors',      keys: ['efg_o', 'efg_d', 'tov_o', 'tov_d', 'orb', 'drb', 'ftr_o', 'ftr_d'] },

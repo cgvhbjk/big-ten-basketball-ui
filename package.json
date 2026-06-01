@@ -10,6 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fetch-data": "node scripts/fetch-data.mjs",
+    "fetch-games": "node scripts/fetch-games.mjs",
+    "fetch-gamelogs": "node scripts/fetch-gamelogs.mjs",
     "fetch-d1": "node scripts/fetch-d1-data.mjs",
     "fetch-combine": "node scripts/fetch-combine-data.mjs",
     "precompute": "node scripts/precompute.mjs"

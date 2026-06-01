@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 
 const usePlayerStore = create((set) => ({
-  selectedSchool: 'yale',
+  selectedSchool: 'michigan',
   selectedYear: 2025,
   selectedPlayer: null,
-  compareSchool: 'princeton',
+  compareSchool: 'purdue',
   compareYear: 2025,
 
   setSelectedSchool: (v) => set({ selectedSchool: v, selectedPlayer: null }),

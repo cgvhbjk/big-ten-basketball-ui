@@ -71,11 +71,11 @@ export default function DiagnosticsPanel({
   const viewingKey  = viewModelKey ?? selectedModelKey
   const modelLabel  = MODEL_LABELS[viewingKey] ?? viewingKey ?? '—'
 
-  // Sign-issue counts across the four Ivy models — used in the plain-English
+  // Sign-issue counts across the four conference models — used in the plain-English
   // summary at the top of the expanded panel.
-  const ivyIssueTotals = ['ols_joint', 'ridge_joint', 'ridge_split', 'constrained_ols']
+  const confIssueTotals = ['ols_joint', 'ridge_joint', 'ridge_split', 'constrained_ols']
     .map(k => ({ k, n: models?.[k]?.signIssues?.length ?? 0 }))
-  const ivyTotalIssues = ivyIssueTotals.reduce((s, x) => s + x.n, 0)
+  const confTotalIssues = confIssueTotals.reduce((s, x) => s + x.n, 0)
 
   return (
     <div style={{ ...CARD, marginBottom: 20, borderColor: hasWarnings ? T.amber : T.border }}>
@@ -104,14 +104,14 @@ export default function DiagnosticsPanel({
             </div>
             We fit four versions of the same Dean Oliver four-factor model. The pipeline picks the one with the best
             out-of-sample fit and no wrong-signed coefficients — currently <strong style={{ color: T.text }}>{MODEL_LABELS[selectedModelKey]}</strong>.
-            The two tables below let you compare all four models side-by-side, first on the Ivy 32 team-seasons,
+            The two tables below let you compare all four models side-by-side, first on the conference team-seasons,
             then on the full D1 corpus (≈1,400 team-seasons) as a sanity check.
-            {ivyTotalIssues > 0 && (
-              <> At Ivy n={n}, <strong style={{ color: T.amber }}>{ivyTotalIssues} sign issue{ivyTotalIssues > 1 ? 's' : ''}</strong> appear in the joint models — these are statistical noise around weak coefficients, not encoding bugs (D1 confirms the correct signs at scale).</>
+            {confTotalIssues > 0 && (
+              <> At conference n={n}, <strong style={{ color: T.amber }}>{confTotalIssues} sign issue{confTotalIssues > 1 ? 's' : ''}</strong> appear in the joint models — these are statistical noise around weak coefficients, not encoding bugs (D1 confirms the correct signs at scale).</>
             )}
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 600, color: T.accentSoft, marginBottom: 8 }}>MODEL COMPARISON · IVY (n={n})</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.accentSoft, marginBottom: 8 }}>MODEL COMPARISON · CONFERENCE (n={n})</div>
           <p style={{ fontSize: 11, color: T.textLow, marginBottom: 8 }}>
             Hover any model name or column header for a plain-English description. Click a row to view that model's coefficients and scatter plot in the Tier 1 card.
           </p>
@@ -136,7 +136,7 @@ export default function DiagnosticsPanel({
                   MODEL COMPARISON · D1-TRAINED (n={d1.nTrain})
                 </div>
                 <p style={{ fontSize: 11, color: T.textLow, marginBottom: 8 }}>
-                  Same four models, refit on the full Barttorvik D1 corpus. Compare row-for-row against the Ivy table above —
+                  Same four models, refit on the full Barttorvik D1 corpus. Compare row-for-row against the conference table above —
                   sign issues that appear at n={n} should disappear here. If they do, those issues were small-sample noise,
                   not encoding bugs.
                 </p>

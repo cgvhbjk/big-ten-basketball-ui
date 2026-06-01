@@ -261,9 +261,9 @@ function StateEPAPanel({ states, deltaNote }) {
             pct2={offTurnover.deadBall.pct}     label2={offTurnover.deadBall.label}   ep2={offTurnover.deadBall.ep}
           />
         )}
-        {offTurnover?.ivyPremium != null && (
+        {offTurnover?.livePremium != null && (
           <div style={{ fontSize: 11, color: T.textLow, marginTop: 5 }}>
-            Ivy live-steal premium: <span style={{ color: T.red, fontFamily: 'monospace' }}>+{offTurnover.ivyPremium.toFixed(3)}</span> vs dead ball
+            Live-steal premium: <span style={{ color: T.red, fontFamily: 'monospace' }}>+{offTurnover.livePremium.toFixed(3)}</span> vs dead ball
           </div>
         )}
       </StatRow>
@@ -379,7 +379,7 @@ function TierCard({ badge, description, tier, result, activeComparison, observat
       )}
       {synthetic && (
         <div style={{ fontSize: 11, color: T.amber, marginBottom: 12, lineHeight: 1.5 }}>
-          Synthetic game data — coefficients, EPA, and scatter would not reflect real Ivy play.
+          Synthetic game data — coefficients, EPA, and scatter would not reflect real Big Ten play.
           {' '}Numbers are hidden by default. Replace gameLogs.json with real ESPN box scores
           (<code>node scripts/fetch-gamelogs.mjs</code>) to populate this card.
           <button onClick={toggleSynthetic}
@@ -409,7 +409,7 @@ function TierCard({ badge, description, tier, result, activeComparison, observat
 const TABS = ['events', 'coefficients', 'scatter', 'state']
 
 export default function EpaLab() {
-  const { ivyOnly, activeComparison, setIvyOnly, setActiveComparison,
+  const { confOnly, activeComparison, setConfOnly, setActiveComparison,
           tier1Result, tier2Result, setTier1Result, setTier2Result } = useEpaStore()
 
   // User-chosen model to view (null = auto-selected by pipeline)
@@ -425,17 +425,17 @@ export default function EpaLab() {
     } catch (e) { return { status: 'error', messages: [e.message], models: null } }
   }, [tier1Result.raw])
 
-  // Compute Tier 2 when ivyOnly changes; cache result keyed by ivyOnly flag
-  const tier2CacheKey = `ivyOnly=${ivyOnly}`
+  // Compute Tier 2 when confOnly changes; cache result keyed by confOnly flag
+  const tier2CacheKey = `confOnly=${confOnly}`
   const tier2 = useMemo(() => {
     if (tier2Result?.cacheKey === tier2CacheKey) return tier2Result.data
     if (!gameLogs?.length) return null
     try {
-      const data = runTier2Pipeline(gameLogs, pipeline.leagueRates ?? {}, { ivyOnly, baselineEP })
+      const data = runTier2Pipeline(gameLogs, pipeline.leagueRates ?? {}, { confOnly, baselineEP })
       setTier2Result({ cacheKey: tier2CacheKey, data })
       return data
     } catch (e) { return { status: 'error', messages: [e.message] } }
-  }, [ivyOnly, pipeline.leagueRates, tier2Result])
+  }, [confOnly, pipeline.leagueRates, tier2Result])
 
   const sel              = pipeline.selectedModel
   const effectiveKey     = viewModelKey ?? sel
@@ -444,8 +444,8 @@ export default function EpaLab() {
   // Tier 2 description
   const t2Result   = tier2?.result ?? tier2
   const t2n        = t2Result?.n
-  const t2IvyLabel = ivyOnly ? ' · Ivy-vs-Ivy only' : ' · all opponents'
-  const tier2Desc  = `Per-game box scores${t2IvyLabel} · n=${t2n ?? '—'} · ESPN · 2022–25. Ridge regression on Dean Oliver four factors.`
+  const t2ConfLabel = confOnly ? ' · conference games only' : ' · all opponents'
+  const tier2Desc  = `Per-game box scores${t2ConfLabel} · n=${t2n ?? '—'} · ESPN · 2022–25. Ridge regression on Dean Oliver four factors.`
 
   return (
     <div style={{ background: T.bg, minHeight: '100vh' }}>
@@ -461,8 +461,8 @@ export default function EpaLab() {
         controls={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.textMd, cursor: 'pointer' }}>
-              <input type="checkbox" checked={ivyOnly} onChange={e => setIvyOnly(e.target.checked)} style={{ accentColor: T.accent }} />
-              Ivy-vs-Ivy only (Tier 2)
+              <input type="checkbox" checked={confOnly} onChange={e => setConfOnly(e.target.checked)} style={{ accentColor: T.accent }} />
+              Conference only (Tier 2)
             </label>
             <div style={{ display: 'flex', gap: 4 }}>
               {TABS.map(tab => (
@@ -503,10 +503,10 @@ export default function EpaLab() {
         />
 
         <PageConclusions prominent conclusions={[
-          { label: 'What EPA measures', color: T.accentSoft, text: 'EPA (Expected Points Added) converts regression coefficients from the Dean Oliver four-factor model into intuitive per-event values. A made 2-pt FG adds ~2.36 pts of net efficiency per 100 possessions. These are not assumed weights — they are estimated from Ivy League game data.' },
-          { label: 'Why TOV/ORB are omitted in Ivy-only Tier 1', color: T.amber, text: 'With only n=32 Ivy team-seasons, TOV% and ORB% are sufficiently correlated with eFG% that all models — including unconstrained ridge — produce wrong-signed coefficients for those two factors. The constrained model correctly zeroes them. The D1-trained row in the Model Selection panel (open it for details) fits on n≈1400 and recovers stable, non-zero TOV/ORB estimates, demonstrating the constraint is a small-sample artifact rather than a structural fact.' },
+          { label: 'What EPA measures', color: T.accentSoft, text: 'EPA (Expected Points Added) converts regression coefficients from the Dean Oliver four-factor model into intuitive per-event values. A made 2-pt FG adds ~2.36 pts of net efficiency per 100 possessions. These are not assumed weights — they are estimated from Big Ten game data.' },
+          { label: 'Why TOV/ORB are omitted in conference-only Tier 1', color: T.amber, text: 'With only the small conference-only team-season sample, TOV% and ORB% are sufficiently correlated with eFG% that all models — including unconstrained ridge — produce wrong-signed coefficients for those two factors. The constrained model correctly zeroes them. The D1-trained row in the Model Selection panel (open it for details) fits on n≈1400 and recovers stable, non-zero TOV/ORB estimates, demonstrating the constraint is a small-sample artifact rather than a structural fact.' },
           { label: 'Model selection logic', color: T.blue, text: 'Four models are fit: OLS, Ridge joint, Ridge split (offense/defense separate), and Constrained OLS (NNLS with theory-correct sign constraints). The pipeline auto-selects by LOO-CV R² and sign validity. EPA event values always come from the constrained model to ensure correct sign direction.' },
-          { label: 'Tier 1 vs Tier 2 (when populated)', color: T.green, text: 'Tier 1 uses season-aggregate four-factor data (Barttorvik, 2022–25). Tier 2 is intended for per-game box scores from the ESPN API for the same 8 schools and seasons. Real Tier 2 data would have ~28× more observations, better isolate game-level variance, and stabilise TOV/ORB estimates. Today\'s Tier 2 panel is fed by synthetic data and its numbers are suppressed by default.' },
+          { label: 'Tier 1 vs Tier 2 (when populated)', color: T.green, text: 'Tier 1 uses season-aggregate four-factor data (Barttorvik, 2022–25). Tier 2 is intended for per-game box scores from the ESPN API for the same schools and seasons. Real Tier 2 data would have ~28× more observations, better isolate game-level variance, and stabilise TOV/ORB estimates. Today\'s Tier 2 panel is fed by synthetic data and its numbers are suppressed by default.' },
         ]} />
 
         {pipeline.status !== 'error' && (

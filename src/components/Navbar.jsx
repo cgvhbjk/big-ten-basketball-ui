@@ -35,7 +35,7 @@ export default function Navbar() {
           IV
         </div>
         <span style={{ fontSize: 14, fontWeight: 700, color: T.text, letterSpacing: '-0.01em' }}>
-          Ivy Basketball
+          Big Ten Basketball
         </span>
       </div>
 
@@ -65,7 +65,7 @@ export default function Navbar() {
 
       {/* Right label */}
       <span style={{ fontSize: 11, color: T.textMin, flexShrink: 0 }}>
-        2022–2025 · 32 team-seasons
+        2022–2025 · Big Ten
       </span>
     </nav>
   )

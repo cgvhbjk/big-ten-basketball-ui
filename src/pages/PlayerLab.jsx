@@ -341,7 +341,7 @@ export default function PlayerLab() {
 
   // localStorage key for a player's combine inputs
   const combineStorageKey = player =>
-    player ? `ivy_combine_${player.school}_${player.year}_${player.name}` : null
+    player ? `bigten_combine_${player.school}_${player.year}_${player.name}` : null
 
   // Stable input handler — defined once, never causes MetricCard remounts
   const handleCombineInput = useCallback((key, value) => {
@@ -487,7 +487,7 @@ export default function PlayerLab() {
 
   const headerSubtitle = tab === 'training' && player
     ? `${SCHOOL_META[selectedSchool].fullName} · ${selectedYear} · ${player.pos_type} · ${broadPositionGroup(player.pos_type)}`
-    : 'Ivy League Basketball · 2022–2025'
+    : 'Big Ten Basketball · 2022–2025'
 
   const headerStats = []
 
@@ -624,7 +624,7 @@ export default function PlayerLab() {
                 </div>
                 {!comparePlayer && (
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 11, color: T.textLow, marginBottom: 4 }}>vs Ivy League {selectedYear} (min 10 mpg)</div>
+                    <div style={{ fontSize: 11, color: T.textLow, marginBottom: 4 }}>vs Big Ten {selectedYear} (min 10 mpg)</div>
                     <ResponsiveContainer width="100%" height={175}>
                       <RadarChart data={radarData} margin={{ top: 4, right: 20, bottom: 4, left: 20 }}>
                         <PolarGrid stroke={T.border} />
@@ -1075,7 +1075,7 @@ export default function PlayerLab() {
           return [
             {
               label: 'Most Efficient',
-              text: `${byOrtg[0].pos} leads Ivy ${posYear === 0 ? '(2022–2025 avg)' : posYear} in offensive rating (${byOrtg[0].ortg} ORTG, n=${byOrtg[0].n} players). ${byOrtg[byOrtg.length - 1].pos} posts the lowest at ${byOrtg[byOrtg.length - 1].ortg}.`,
+              text: `${byOrtg[0].pos} leads the Big Ten ${posYear === 0 ? '(2022–2025 avg)' : posYear} in offensive rating (${byOrtg[0].ortg} ORTG, n=${byOrtg[0].n} players). ${byOrtg[byOrtg.length - 1].pos} posts the lowest at ${byOrtg[byOrtg.length - 1].ortg}.`,
               color: T.accentSoft,
             },
             {

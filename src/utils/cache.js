@@ -18,7 +18,7 @@
 import teamSeasons from '../data/teamSeasons.json'
 import games       from '../data/games.json'
 
-const NS = 'ivy:cache:v1'
+const NS = 'b1g:cache:v1'
 // 800 KB cap per entry — anything bigger probably means we're caching the
 // wrong thing (whole point arrays instead of just the stats).
 const PER_ENTRY_CAP = 800 * 1024
@@ -35,7 +35,7 @@ function _safeStorage() {
   try {
     const ls = window.localStorage
     if (!ls) return null
-    const probe = '__ivy_cache_probe__'
+    const probe = '__b1g_cache_probe__'
     ls.setItem(probe, '1')
     ls.removeItem(probe)
     return ls

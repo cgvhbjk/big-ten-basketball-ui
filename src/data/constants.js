@@ -1,14 +1,43 @@
-export const SCHOOLS = ['harvard', 'yale', 'penn', 'princeton', 'dartmouth', 'cornell', 'brown', 'columbia']
+// Canonical team-key derivation. Barttorvik display names ("Michigan St.",
+// "Ohio St.") become clean slugs used as the join key across teamSeasons.json,
+// players.json, games.json, and SCHOOL_META below. Single source of truth —
+// imported by both the browser app and the node fetch scripts (../scripts).
+export function slugify(name) {
+  return String(name).toLowerCase().replace(/\./g, '').trim().replace(/\s+/g, '-')
+}
+
+// Big Ten — 18-team union after the 2024–25 realignment. The four West-Coast
+// newcomers (ucla, usc, oregon, washington) only carry Big Ten data from 2025;
+// their earlier seasons are absent by design (they were Pac-12). Each slug
+// equals slugify(<Barttorvik name>). Badge text is white, so colors run dark
+// enough to stay legible (TeamBadge adds a luminance fallback for the lighter
+// hues). With 18 teams some scatter-fill colors are unavoidably close — six
+// reds/scarlets, two purples — chosen as far apart as brand identity allows.
+export const SCHOOLS = [
+  'illinois', 'indiana', 'iowa', 'maryland', 'michigan', 'michigan-st',
+  'minnesota', 'nebraska', 'northwestern', 'ohio-st', 'oregon', 'penn-st',
+  'purdue', 'rutgers', 'ucla', 'usc', 'washington', 'wisconsin',
+]
 
 export const SCHOOL_META = {
-  harvard:   { abbr: 'HAR', fullName: 'Harvard Crimson',      color: '#D44F5C' },
-  yale:      { abbr: 'YAL', fullName: 'Yale Bulldogs',         color: '#2878C7' },
-  penn:      { abbr: 'PEN', fullName: 'Penn Quakers',          color: '#CC2222' },
-  princeton: { abbr: 'PRI', fullName: 'Princeton Tigers',      color: '#F58025' },
-  dartmouth: { abbr: 'DAR', fullName: 'Dartmouth Big Green',   color: '#0DAF68' },
-  cornell:   { abbr: 'COR', fullName: 'Cornell Big Red',       color: '#D63B3B' },
-  brown:     { abbr: 'BRO', fullName: 'Brown Bears',           color: '#7D5643' },
-  columbia:  { abbr: 'COL', fullName: 'Columbia Lions',        color: '#B9D9EB' },
+  illinois:      { abbr: 'ILL', fullName: 'Illinois Fighting Illini', color: '#E84A27' },
+  indiana:       { abbr: 'IND', fullName: 'Indiana Hoosiers',         color: '#990000' },
+  iowa:          { abbr: 'IOW', fullName: 'Iowa Hawkeyes',            color: '#C8A415' },
+  maryland:      { abbr: 'MAR', fullName: 'Maryland Terrapins',       color: '#E03A3E' },
+  michigan:      { abbr: 'MCH', fullName: 'Michigan Wolverines',      color: '#00274C' },
+  'michigan-st': { abbr: 'MSU', fullName: 'Michigan State Spartans',  color: '#18453B' },
+  minnesota:     { abbr: 'MIN', fullName: 'Minnesota Golden Gophers', color: '#7A0019' },
+  nebraska:      { abbr: 'NEB', fullName: 'Nebraska Cornhuskers',     color: '#E41D25' },
+  northwestern:  { abbr: 'NWU', fullName: 'Northwestern Wildcats',    color: '#4E2A84' },
+  'ohio-st':     { abbr: 'OSU', fullName: 'Ohio State Buckeyes',      color: '#BB0000' },
+  oregon:        { abbr: 'ORE', fullName: 'Oregon Ducks',             color: '#154733' },
+  'penn-st':     { abbr: 'PSU', fullName: 'Penn State Nittany Lions', color: '#1E407C' },
+  purdue:        { abbr: 'PUR', fullName: 'Purdue Boilermakers',      color: '#B1810B' },
+  rutgers:       { abbr: 'RUT', fullName: 'Rutgers Scarlet Knights',  color: '#CC0033' },
+  ucla:          { abbr: 'UCL', fullName: 'UCLA Bruins',              color: '#2774AE' },
+  usc:           { abbr: 'USC', fullName: 'USC Trojans',              color: '#9D2235' },
+  washington:    { abbr: 'WAS', fullName: 'Washington Huskies',       color: '#39275B' },
+  wisconsin:     { abbr: 'WIS', fullName: 'Wisconsin Badgers',        color: '#C5050C' },
 }
 
 export const SCHOOL_COLORS = Object.fromEntries(

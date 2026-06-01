@@ -61,7 +61,7 @@ export function isCalibrationCached(teamSeasons, games) {
 /**
  * Get the D1-trained EPA coefficient set. Returns null when the precompute
  * script hasn't seen a d1TeamSeasons.json yet — caller falls back to the
- * Ivy-only fit produced by runEPAPipeline.
+ * conference-only fit produced by runEPAPipeline.
  */
 export function getD1EPAModels() {
   return precomputed?.d1Models ?? null

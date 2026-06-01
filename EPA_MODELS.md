@@ -61,9 +61,9 @@ Current default output: **Constrained OLS** (sign issues in `tov_o`, `orb`, `tov
 
 ## Field encoding (Phase 0 — VERIFIED)
 
-The directional encoding of four columns from Barttorvik's slice JSON was historically ambiguous. The Phase-0 audit (`src/utils/epaModels/encodingAudit.js`) resolves this empirically — it fits a four-factor OLS on the 32 Ivy team-seasons and reports the partial coefficient signs. The unit test at `src/utils/epaModels/__tests__/encodingAudit.test.js` locks these signs in CI.
+The directional encoding of four columns from Barttorvik's slice JSON was historically ambiguous. The Phase-0 audit (`src/utils/epaModels/encodingAudit.js`) resolves this empirically — it fits a four-factor OLS on the the conference team-seasons and reports the partial coefficient signs. The unit test at `src/utils/epaModels/__tests__/encodingAudit.test.js` locks these signs in CI.
 
-### Empirical regression (n=32, standardized X)
+### Empirical regression (small n, standardized X)
 
 **Offense → ppp** (R²=0.96):
 
@@ -79,7 +79,7 @@ The directional encoding of four columns from Barttorvik's slice JSON was histor
 | Field | β   | Sign | Note |
 |---|----:|:---:|---|
 | `efg_d` | +2.83 | + | Standard. |
-| `tov_d` | +0.07 | + | **Low confidence** — magnitude effectively zero at n=32. Audit warns; bivariate sign is weakly negative, partial sign is weakly positive. We retain the audit's positive sign for the constraint but expect this is the noisiest of the four. |
+| `tov_d` | +0.07 | + | **Low confidence** — magnitude effectively zero at small n. Audit warns; bivariate sign is weakly negative, partial sign is weakly positive. We retain the audit's positive sign for the constraint but expect this is the noisiest of the four. |
 | `drb`   | −2.42 | − | Standard — own DRB% reduces opp scoring. |
 | `ftr_d` | +1.95 | + | Standard. |
 
@@ -97,7 +97,7 @@ Three signs differ from textbook convention: `off_TOV: +1` (was −1), `off_ORB:
 
 ### Why we still need the modeling complexity
 
-Phase 0 originally hypothesized that fixing the encoding would let us retire `constrained_ols` and the dual-variant logic in `convertToEventEPA`. That partly held: the **sign ambiguity is gone** (we now know what every coefficient should look like). But the small-sample multicollinearity remains — at n=32, ridge-split still produces `def_TOV` coefficients near zero, and the joint model still benefits from sign enforcement to keep TOV/ORB from getting absorbed by `eFG`. The constrained model and the model-comparison logic stay; only the "we don't know which way is up" hedging in copy/docs goes away.
+Phase 0 originally hypothesized that fixing the encoding would let us retire `constrained_ols` and the dual-variant logic in `convertToEventEPA`. That partly held: the **sign ambiguity is gone** (we now know what every coefficient should look like). But the small-sample multicollinearity remains — at small n, ridge-split still produces `def_TOV` coefficients near zero, and the joint model still benefits from sign enforcement to keep TOV/ORB from getting absorbed by `eFG`. The constrained model and the model-comparison logic stay; only the "we don't know which way is up" hedging in copy/docs goes away.
 
 **Recommendation for future data refreshes**: run `npm test` after refreshing `teamSeasons.json`. If the encoding audit fails, the refresh introduced an encoding flip — investigate before merging.
 
@@ -114,7 +114,7 @@ made2FG  = β_eFG × (100 / FGA_p100)
 made3FG  = β_eFG × (100 / FGA_p100) × 1.5
 ```
 
-League-average `FGA_p100 = 87.9` (derived from 32 team-seasons). The old 48 was wrong by 1.8×.
+League-average `FGA_p100 = 87.9` (derived from the conference team-seasons, recomputed at runtime). The old 48 was wrong by 1.8×.
 
 ---
 
@@ -137,7 +137,7 @@ const result2 = runEPAPipeline(teamSeasons, { targetMode: 'adjusted' })
 Replace `src/data/gameLogs.json` with real Barttorvik per-game box scores. Each row must include:
 
 ```
-school, year, date, opponent, is_ivy_opponent, location,
+school, year, date, opponent, is_conf_opponent, location,
 pts, fgm, fga, fg3m, fg3a, ftm, fta, orb, drb, tov,
 opp_pts, opp_fgm, opp_fga, opp_fg3m, opp_fg3a, opp_ftm, opp_fta,
 opp_orb, opp_drb, opp_tov
@@ -149,7 +149,7 @@ The `synthetic` flag will clear automatically once real data is present (detecti
 
 ## What would most improve the model
 
-1. **More seasons** — pull 5+ years of all D1 data for coefficient stability, then apply to Ivy
+1. **More seasons** — pull 5+ years of all D1 data for coefficient stability, then apply to the conference
 2. **Clarify field encoding** — confirm direction of `tov_o`, `orb`, `tov_d`, `drb` in Barttorvik
 3. **Real game-log data** — Tier 2 is currently synthetic; per-game box scores unlock possession-level analysis
 4. **Possession-level data** — each possession is one observation; thousands of rows make all models stable

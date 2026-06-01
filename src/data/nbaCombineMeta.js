@@ -7,7 +7,7 @@ const draftYears = [...new Set(nbaCombine.map(p => p.draft_year))].filter(y => y
 
 export const NBA_COMBINE_META = {
   source: 'NBA Draft Combine measurements + college reference stats',
-  caveat: 'Combine attendees are top-60 draft prospects. Using their medians as "targets" for Ivy players biases comparisons toward elite finalists; treat percentiles as aspirational, not peer-relative.',
+  caveat: 'Combine attendees are top-60 draft prospects. Using their medians as "targets" for these players biases comparisons toward elite finalists; treat percentiles as aspirational, not peer-relative.',
   draftYearMin: draftYears[0]                  ?? null,
   draftYearMax: draftYears[draftYears.length - 1] ?? null,
   draftYears,

@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 
 // Matchup Analyzer state. Each team carries an independent year so the
-// analyzer can run cross-year hypotheticals (e.g., 2024 Princeton vs 2022 Yale).
+// analyzer can run cross-year hypotheticals (e.g., 2024 Purdue vs 2022 Michigan).
+// Defaults are legacy Big Ten members so they have data in every season.
 const useStore = create((set) => ({
-  analyzerTeamA: 'yale',
-  analyzerTeamB: 'princeton',
+  analyzerTeamA: 'michigan',
+  analyzerTeamB: 'purdue',
   analyzerYearA: 2025,
   analyzerYearB: 2025,
 

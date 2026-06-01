@@ -119,12 +119,12 @@ assert(
 // Tests are self-contained and do not depend on gameLogs.json content.
 console.log('\n[8] Synthetic Tier 2 guard')
 
-const IVY = ['harvard','yale','princeton','columbia','penn','brown','dartmouth','cornell']
+const TEAMS = ['michigan','purdue','illinois','wisconsin','indiana','ohio-st','iowa','rutgers']
 const syntheticLogs = Array.from({ length: 25 }, (_, i) => ({
-  school:          IVY[i % IVY.length],
+  school:          TEAMS[i % TEAMS.length],
   year:            2024,
   opponent:        'Opponent University',
-  is_ivy_opponent: false,
+  is_conf_opponent: false,
   pts: 70, opp_pts: 65,
   fgm: 26, fga: 60, fg3m: 6, fg3a: 18, ftm: 12, fta: 16,
   orb: 10, drb: 25, tov: 12,

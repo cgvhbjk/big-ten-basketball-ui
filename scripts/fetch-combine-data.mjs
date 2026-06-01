@@ -64,7 +64,7 @@ async function fetchDraftYear(year) {
   }
 
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (research use; ivy-basketball-ui)' }
+    headers: { 'User-Agent': 'Mozilla/5.0 (research use; big-ten-basketball-ui)' }
   })
   if (!res.ok) {
     console.warn(`  HTTP ${res.status} for ${year} — skipping`)

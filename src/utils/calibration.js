@@ -27,7 +27,7 @@
 
 // ── Logistic regression for predictWinPct(net_eff_diff) ──────────────────────
 //
-// Given Ivy-vs-Ivy games and team-season net efficiency, fit:
+// Given conference games and team-season net efficiency, fit:
 //   logit(P(win)) = α₀ + β · diff + β_h · home_indicator
 // where diff = (adjoeA − adjdeA) − (adjoeB − adjdeB).
 //
@@ -94,7 +94,7 @@ function _logisticFit(X, y, { iters = 50, ridge = 1e-4 } = {}) {
 // Fit logistic regression `win ~ slope·diff + homeBonus·home`, no intercept.
 // `home` is +1 (home), 0 (neutral), -1 (away of focal team).
 //
-// We feed in both perspectives of every Ivy-vs-Ivy game: (diff, home, y) and
+// We feed in both perspectives of every conference game: (diff, home, y) and
 // (−diff, −home, 1−y). The data is anti-symmetric, which forces the intercept
 // to 0 by construction — the previous version restricted to school <
 // opp_school, which was asymmetric and let the intercept absorb a spurious
@@ -105,7 +105,7 @@ function _logisticFit(X, y, { iters = 50, ridge = 1e-4 } = {}) {
 const FALLBACK = { intercept: 0, slope: 0.12, homeBonus: 0, n: 0, fallback: true }
 
 /**
- * Fit a logistic model `P(win) = σ(slope·diff + homeBonus·home)` on Ivy-vs-Ivy games.
+ * Fit a logistic model `P(win) = σ(slope·diff + homeBonus·home)` on conference games.
  * @param {Array<Object>} games — rows from games.json
  * @param {Array<Object>} teamSeasons — rows from teamSeasons.json
  * @returns {WinModel}
@@ -118,7 +118,7 @@ export function calibrateWinPctModel(games, teamSeasons) {
   const X = []   // [diff, home] — no intercept column
   const y = []
   for (const g of games) {
-    if (!g.ivy_game || g.win == null || !g.opp_school) continue
+    if (!g.conf_game || g.win == null || !g.opp_school) continue
     // Use only one row per game (alphabetically earlier school) and add
     // both perspectives manually to keep the data exactly anti-symmetric.
     if (g.school >= g.opp_school) continue

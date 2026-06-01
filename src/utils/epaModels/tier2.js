@@ -48,9 +48,9 @@ function computeGameFactors(g) {
   return allFinite ? row : null
 }
 
-export function runTier2Pipeline(gameLogs, leagueRates, { ivyOnly = false, baselineEP = null } = {}) {
+export function runTier2Pipeline(gameLogs, leagueRates, { confOnly = false, baselineEP = null } = {}) {
   // Validate — this explicitly checks and flags synthetic data
-  const validation = validateGameLogs(gameLogs, { ivyOnly })
+  const validation = validateGameLogs(gameLogs, { confOnly })
 
   if (!validation.ok) {
     return {
@@ -61,7 +61,7 @@ export function runTier2Pipeline(gameLogs, leagueRates, { ivyOnly = false, basel
     }
   }
 
-  const rows = ivyOnly ? gameLogs.filter(g => g.is_ivy_opponent) : gameLogs
+  const rows = confOnly ? gameLogs.filter(g => g.is_conf_opponent) : gameLogs
 
   const processed = rows.map(g => computeGameFactors(g)).filter(Boolean)
   if (processed.length < 20) {
@@ -106,8 +106,8 @@ export function runTier2Pipeline(gameLogs, leagueRates, { ivyOnly = false, basel
     messages:  validation.warnings,
     result: {
       n,
-      ivyOnly,
-      label:        `Game logs${ivyOnly ? ' · Ivy-only' : ''} (n=${n})`,
+      confOnly,
+      label:        `Game logs${confOnly ? ' · Conference-only' : ''} (n=${n})`,
       r2:           model.r2,
       adjR2:        model.adjR2,
       rmse:         model.rmse,

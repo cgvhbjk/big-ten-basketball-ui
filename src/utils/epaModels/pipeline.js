@@ -19,7 +19,7 @@ export function runEPAPipeline(teamSeasons, opts = {}) {
   // Optional separate training set: when provided, coefficients are *fitted*
   // on `trainingTeamSeasons` (e.g., the full D1 corpus, n≈1400) but predictions,
   // observations, residuals, and diagnostics are computed against the original
-  // `teamSeasons` (e.g., Ivy-only, n=32). This is the primary lever for
+  // `teamSeasons` (e.g., conference-only). This is the primary lever for
   // dissolving the n=32 collinearity that forces TOV/ORB out of the constrained
   // model. When omitted, training === apply (legacy behavior).
   const trainingTeamSeasons = opts.trainingTeamSeasons ?? teamSeasons
@@ -168,7 +168,7 @@ export function runEPAPipeline(teamSeasons, opts = {}) {
     const conv = convertToEventEPA(namedCoeffs(m.beta, ALL_FEATURES), leagueRates, baselineEP, { modelVariant: 'joint' })
     const signs = checkSigns(m.beta, ALL_FEATURES, CONSTRAINED_SIGNS)
     // LOO-CV R² so the selected model is comparable to ridge_split's cvR2.
-    // n is small (≈32) on Ivy-only training, so refitting NNLS n times is cheap.
+    // n is small on conference-only training, so refitting NNLS n times is cheap.
     // Skip when training set is large (D1 corpus, n≈1400) — LOO would refit
     // 1400× and the standard error from a single fit on n=1400 is plenty.
     const nObs = yNetTrain.length
@@ -247,7 +247,7 @@ export function runEPAPipeline(teamSeasons, opts = {}) {
     messages,
     selectedModel: bestModel,
     selectionReason,
-    n,                         // apply-set size (typically 32 — Ivy)
+    n,                         // apply-set size (the conference apply-set)
     nTrain,                    // training-set size (32 if no separate training, ~1400 for D1)
     distinctTraining,          // true when fit was on a different corpus than apply
     targetMode,

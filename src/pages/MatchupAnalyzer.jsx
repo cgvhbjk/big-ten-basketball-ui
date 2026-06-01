@@ -16,7 +16,7 @@ import MethodologyPanel from '../components/shared/MethodologyPanel.jsx'
 import { T } from '../styles/theme.js'
 import { getCoach } from '../data/coachMeta.js'
 import {
-  classifyOffScheme, classifyDefScheme,
+  classifyOffScheme, classifyDefScheme, deriveSchemeThresholds,
   comparePositionProfiles, generateMatchupInsights, generatePlayerRoleSummary,
   parseHeightIn, buildPositionWeightedAggregates, dataQualityCheck,
   classifySchemeFromRoster, computeTeamArchetype,
@@ -60,7 +60,7 @@ const FOUR_FACTORS = [
 
 // Calibrated win-probability for a hypothetical neutral-court matchup. The
 // slope, intercept, and home bonus all come from logistic regression on the
-// full Ivy-vs-Ivy game record (see calibration.js). The previous version used
+// full conference game record (see calibration.js). The previous version used
 // a hard-coded slope of 0.12 with no intercept and no home effect.
 function predictWinPct(adjoeA, adjdeA, adjoeB, adjdeB, home = 0) {
   const diff = (adjoeA - adjdeA) - (adjoeB - adjdeB)
@@ -252,10 +252,12 @@ export default function MatchupAnalyzer() {
   const coachA = useMemo(() => getCoach(analyzerTeamA, analyzerYearA), [analyzerTeamA, analyzerYearA])
   const coachB = useMemo(() => getCoach(analyzerTeamB, analyzerYearB), [analyzerTeamB, analyzerYearB])
 
-  const schemeOffA = useMemo(() => seasonA ? classifyOffScheme(seasonA) : '—', [seasonA])
-  const schemeOffB = useMemo(() => seasonB ? classifyOffScheme(seasonB) : '—', [seasonB])
-  const schemeDefA = useMemo(() => seasonA ? classifyDefScheme(seasonA) : '—', [seasonA])
-  const schemeDefB = useMemo(() => seasonB ? classifyDefScheme(seasonB) : '—', [seasonB])
+  // Conference-relative scheme cut-points, derived once from the full dataset.
+  const schemeThr = useMemo(() => deriveSchemeThresholds(teamSeasons), [])
+  const schemeOffA = useMemo(() => seasonA ? classifyOffScheme(seasonA, schemeThr) : '—', [seasonA, schemeThr])
+  const schemeOffB = useMemo(() => seasonB ? classifyOffScheme(seasonB, schemeThr) : '—', [seasonB, schemeThr])
+  const schemeDefA = useMemo(() => seasonA ? classifyDefScheme(seasonA, schemeThr) : '—', [seasonA, schemeThr])
+  const schemeDefB = useMemo(() => seasonB ? classifyDefScheme(seasonB, schemeThr) : '—', [seasonB, schemeThr])
 
   const posCompare = useMemo(() =>
     comparePositionProfiles(squadA, squadB, { weightBy: posWeightBy })
@@ -604,7 +606,7 @@ export default function MatchupAnalyzer() {
                 </RadarChart>
               </ResponsiveContainer>
               <div style={{ fontSize: 11, color: '#374151', textAlign: 'center', marginTop: 4 }}>
-                Normalized within Ivy range · Outer = better
+                Normalized within conference range · Outer = better
               </div>
             </div>
           </div>
@@ -931,7 +933,7 @@ export default function MatchupAnalyzer() {
         <PageConclusions title="Matchup Conclusions" conclusions={conclusions} prominent />
 
         <MethodologyPanel
-          howItWorks="The Matchup Analyzer compares two teams across adjusted efficiency, four factors, and roster profiles. Win probability is estimated using a logistic function on the net efficiency differential. Scheme labels (pace, off/def style) are derived from four-factor and tempo thresholds calibrated to the Ivy League distribution."
+          howItWorks="The Matchup Analyzer compares two teams across adjusted efficiency, four factors, and roster profiles. Win probability is estimated using a logistic function on the net efficiency differential. Scheme labels (pace, off/def style) are derived from four-factor and tempo thresholds derived from the conference distribution."
           sections={[
             { title: 'Efficiency',   keys: ['adjoe', 'adjde', 'net_efficiency', 'barthag'] },
             { title: 'Four Factors', keys: ['efg_o', 'efg_d', 'tov_o', 'tov_d', 'orb', 'drb', 'ftr_o', 'ftr_d'] },

@@ -34,7 +34,7 @@ export function computeLeagueRates(teamSeasons) {
 // ── Base + Delta EPA conversion ───────────────────────────────────────────────
 //
 // Aggregate values (unchanged from previous version):
-//   Denominator: FGA_p100 from accounting identity (87.9 for Ivy 2022–25)
+//   Denominator: FGA_p100 from accounting identity (computed at runtime via computeLeagueRates)
 //   Unit: points of net efficiency per 100 possessions, per event
 //
 // State context (new):
@@ -46,8 +46,8 @@ export function computeLeagueRates(teamSeasons) {
 //   Delta interpretation:
 //     A positive δ means the event costs/gains more than the baseline assumption.
 //     A negative δ means it costs/gains less than baseline.
-//     With only league-aggregate data, δ reflects Ivy-specific regression vs NCAA baseline.
-//     With per-team game logs (Tier 2), δ would reflect team-specific vs Ivy-league average.
+//     With only league-aggregate data, δ reflects conference-specific regression vs NCAA baseline.
+//     With per-team game logs (Tier 2), δ would reflect team-specific vs conference average.
 //
 //   Scale note:
 //     Baseline EP values are in "points per possession" (absolute).
@@ -108,7 +108,7 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
     // Delta: regression value (per-100-poss) normalized to per-possession scale
     // When tov_o encoding is ambiguous, β_TOV may be 0 (constrained) — delta is 0
     const tovDelta = +(off_TOV / 100).toFixed(3)
-    const tovIvyDelta = +(tovBase - ps.dead_ball_inbound.ep).toFixed(3)
+    const tovLiveDelta = +(tovBase - ps.dead_ball_inbound.ep).toFixed(3)
 
     // Offensive rebound state context
     // Base: weighted EP your team gets = putback_pct × putback_ep + reset_pct × reset_ep
@@ -150,7 +150,7 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
         weightedOpponentEP: tovBase,
         regressionDelta:    tovDelta,
         combined:           +(tovBase + tovDelta).toFixed(3),
-        ivyPremium:         tovIvyDelta,   // extra cost of live steal vs dead ball
+        livePremium:         tovLiveDelta,   // extra cost of live steal vs dead ball
         note: 'Cost to you = opponent EP gained. Live steal (37%) vs dead ball (63%).',
       },
       offRebound: {
@@ -177,7 +177,7 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
       },
       _deltaNote: off_TOV === 0
         ? 'Regression deltas are 0 because the constrained model zeroed ambiguous tov_o/orb coefficients. Baseline state values are reliable; deltas require per-team game-log data (Tier 2).'
-        : 'Deltas reflect Ivy-aggregate regression vs NCAA baseline. Per-team deltas require per-team game logs (Tier 2).',
+        : 'Deltas reflect conference-aggregate regression vs NCAA baseline. Per-team deltas require per-team game logs (Tier 2).',
     }
   }
 

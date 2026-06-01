@@ -30,7 +30,7 @@ describe('calibrateWinPctModel', () => {
       seasons.push(mkSeason(a, 2024, 100 + (i % 5), 100 - (i % 5)))
       seasons.push(mkSeason(b, 2024, 100 - (i % 5), 100 + (i % 5)))
       games.push({
-        ivy_game: true, win: i % 2 === 0, home: i % 3 === 0, neutral: false,
+        conf_game: true, win: i % 2 === 0, home: i % 3 === 0, neutral: false,
         school: a < b ? a : b, opp_school: a < b ? b : a, year: 2024,
       })
     }

@@ -45,9 +45,9 @@ const pyRaw       = calibratePythagoreanExp(teamSeasons, { mode: 'raw'      })
 
 // ── D1-trained EPA coefficients (Phase 4 #1) ────────────────────────────────
 // Fit on the full Barttorvik D1 corpus (~1400 obs over 4 years), apply to
-// teamSeasons (Ivy). Produces a coefficient set without the n=32 collinearity
+// teamSeasons (the conference). Produces a coefficient set without the n=32 collinearity
 // that forces the constrained model to zero TOV/ORB. Skipped if the D1 file
-// hasn't been fetched yet — runtime falls back to Ivy-only fit.
+// hasn't been fetched yet — runtime falls back to conference-only fit.
 const d1Path = join(dataDir, 'd1TeamSeasons.json')
 let d1Models = null
 let d1Hash   = null
@@ -73,7 +73,7 @@ if (existsSync(d1Path)) {
     // Drop the heavy stuff (states, EPA events, observations) since those get
     // recomputed at runtime against the live baseline. Keep coefficients plus
     // the small fit-quality metrics the model-comparison table needs to render
-    // the D1 row alongside the Ivy n=32 fit.
+    // the D1 row alongside the conference fit.
     const slim = (m) => m && !m.error ? {
       coefficients: m.coefficients,
       r2:           m.r2 ?? null,

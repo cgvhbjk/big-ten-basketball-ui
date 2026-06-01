@@ -345,20 +345,36 @@ export function linearRegression(points) {
   return { slope, intercept: meanY - slope * meanX }
 }
 
-// Style-bucket interactions — groups by play style (3-point rate or tempo)
-// and computes correlation per bucket; basketball analogue of scheme interactions.
+// Quantile (linear interpolation) over a numeric array; used to derive
+// conference-relative style/scheme cut-points from the loaded distribution.
+export function quantile(values, p) {
+  const v = values.filter(x => x != null && isFinite(x)).sort((a, b) => a - b)
+  if (v.length === 0) return null
+  const idx = (v.length - 1) * p
+  const lo = Math.floor(idx), hi = Math.ceil(idx)
+  return lo === hi ? v[lo] : v[lo] + (v[hi] - v[lo]) * (idx - lo)
+}
+
+// Style-bucket interactions — groups by play style (3-point rate or tempo) and
+// computes correlation per bucket; basketball analogue of scheme interactions.
+// Bucket edges are the dataset's terciles, so they track whatever conference /
+// seasons are loaded rather than fixed historical cuts.
 export function detectStyleInteractions(teamSeasons, xKey, yKey, styleKey = 'three_rate_o') {
+  const vals = teamSeasons.map(s => s[styleKey]).filter(v => v != null)
+  const hi = quantile(vals, 0.66)
+  const lo = quantile(vals, 0.33)
+  const f = v => (v == null ? '—' : v.toFixed(0))
   const buckets =
     styleKey === 'tempo'
       ? [
-          { label: 'Up-Tempo (≥70)',  test: s => s.tempo >= 70 },
-          { label: 'Moderate (64–70)', test: s => s.tempo >= 64 && s.tempo < 70 },
-          { label: 'Slow (<64)',        test: s => s.tempo < 64 },
+          { label: `Up-Tempo (≥${f(hi)})`,         test: s => s.tempo >= hi },
+          { label: `Moderate (${f(lo)}–${f(hi)})`, test: s => s.tempo >= lo && s.tempo < hi },
+          { label: `Slow (<${f(lo)})`,             test: s => s.tempo < lo },
         ]
       : [
-          { label: '3-Heavy (≥40%)',   test: s => s.three_rate_o >= 40 },
-          { label: 'Balanced (30–40)', test: s => s.three_rate_o >= 30 && s.three_rate_o < 40 },
-          { label: 'Inside Out (<30)', test: s => s.three_rate_o < 30 },
+          { label: `3-Heavy (≥${f(hi)}%)`,          test: s => s.three_rate_o >= hi },
+          { label: `Balanced (${f(lo)}–${f(hi)}%)`, test: s => s.three_rate_o >= lo && s.three_rate_o < hi },
+          { label: `Inside Out (<${f(lo)}%)`,       test: s => s.three_rate_o < lo },
         ]
 
   return buckets.map(b => {
@@ -371,37 +387,62 @@ export function detectStyleInteractions(teamSeasons, xKey, yKey, styleKey = 'thr
 
 // ── Scheme classification ─────────────────────────────────────────────────────
 //
-// All thresholds are calibrated against the 2022–2025 Ivy team-season distribution
-// (32 observations) — they're empirical, not normative. Re-derive when the dataset
-// expands beyond Ivy or covers more years.
+// The classifiers take an optional thresholds object. Data-driven callers pass
+// conference-relative cut-points from deriveSchemeThresholds(teamSeasons) so the
+// scheme labels self-calibrate to whatever conference / seasons are loaded; the
+// DEFAULT_SCHEME_THRESHOLDS seed below is only a fallback (and what the unit
+// tests pin). The seed quantile choices reproduce the historical empirical cuts.
 
-// Ivy 2022–25 ranges: tempo 60–73 (median ~68), three_rate_o 28–48 (median ~36).
-// `fast` cut at 68 splits the league roughly into halves; `heavy3` cut at 40
-// captures the perimeter-dominant teams (~upper third).
-const SCHEME_OFF_FAST_TEMPO   = 68
-const SCHEME_OFF_HEAVY_3_RATE = 40
+// Seed cut-points: median tempo splits the league into halves; the 3-rate cut
+// sits at the upper third (perimeter-dominant). Defensively: top-decile forced
+// TOV ⇒ pressure, high-end block rate ⇒ rim protection, below-median eFG
+// allowed ⇒ coverage.
+const SCHEME_OFF_FAST_TEMPO       = 68
+const SCHEME_OFF_HEAVY_3_RATE     = 40
+const SCHEME_DEF_PRESSURE_TOV     = 31
+const SCHEME_DEF_RIM_BLOCK_RATE   = 11
+const SCHEME_DEF_COVERAGE_EFG_MAX = 50
 
-export function classifyOffScheme(season) {
-  const fast   = season.tempo        >= SCHEME_OFF_FAST_TEMPO
-  const heavy3 = season.three_rate_o >= SCHEME_OFF_HEAVY_3_RATE
+export const DEFAULT_SCHEME_THRESHOLDS = {
+  offFastTempo:      SCHEME_OFF_FAST_TEMPO,
+  offHeavy3Rate:     SCHEME_OFF_HEAVY_3_RATE,
+  defPressureTov:    SCHEME_DEF_PRESSURE_TOV,
+  defRimBlock:       SCHEME_DEF_RIM_BLOCK_RATE,
+  defCoverageEfgMax: SCHEME_DEF_COVERAGE_EFG_MAX,
+}
+
+// Derive scheme cut-points from the actual team-season distribution. Quantiles
+// mirror the seed intent (median tempo, upper-third 3-rate, top-decile forced
+// TOV, high-end block rate, below-median eFG allowed); any metric absent from
+// the data falls back to the seed default.
+export function deriveSchemeThresholds(teamSeasons) {
+  const q = (key, p) => quantile(teamSeasons.map(s => s[key]), p)
+  const t = {
+    offFastTempo:      q('tempo', 0.50),
+    offHeavy3Rate:     q('three_rate_o', 0.66),
+    defPressureTov:    q('tov_d', 0.90),
+    defRimBlock:       q('blk_d', 0.80),
+    defCoverageEfgMax: q('efg_d', 0.40),
+  }
+  for (const k of Object.keys(DEFAULT_SCHEME_THRESHOLDS)) {
+    if (t[k] == null || !isFinite(t[k])) t[k] = DEFAULT_SCHEME_THRESHOLDS[k]
+  }
+  return t
+}
+
+export function classifyOffScheme(season, t = DEFAULT_SCHEME_THRESHOLDS) {
+  const fast   = season.tempo        >= t.offFastTempo
+  const heavy3 = season.three_rate_o >= t.offHeavy3Rate
   if (fast  && heavy3)  return 'Run & Gun'
   if (fast  && !heavy3) return 'Transition Attack'
   if (!fast && heavy3)  return 'Spread Offense'
   return 'Grind It Out'
 }
 
-// Defensive cuts (Ivy 2022–25 ranges shown):
-//   tov_d  ≥ 31  — TOV% forced; Ivy range ~17–35, top-decile is ≥31 ⇒ elite pressure
-//   blk_d  ≥ 11  — block rate (blocks ÷ opp FGA × 100); Ivy range ~6.5–12.7, ≥11 ⇒ rim protection
-//   efg_d  ≤ 50  — eFG% allowed; Ivy median ~52, ≤50 ⇒ perimeter lockdown
-const SCHEME_DEF_PRESSURE_TOV     = 31
-const SCHEME_DEF_RIM_BLOCK_RATE   = 11
-const SCHEME_DEF_COVERAGE_EFG_MAX = 50
-
-export function classifyDefScheme(season) {
-  if (season.tov_d >= SCHEME_DEF_PRESSURE_TOV)     return 'High Pressure'
-  if (season.blk_d >= SCHEME_DEF_RIM_BLOCK_RATE)   return 'Rim Protection'
-  if (season.efg_d <= SCHEME_DEF_COVERAGE_EFG_MAX) return 'Coverage'
+export function classifyDefScheme(season, t = DEFAULT_SCHEME_THRESHOLDS) {
+  if (season.tov_d >= t.defPressureTov)    return 'High Pressure'
+  if (season.blk_d >= t.defRimBlock)       return 'Rim Protection'
+  if (season.efg_d <= t.defCoverageEfgMax) return 'Coverage'
   return 'Standard'
 }
 
@@ -559,7 +600,9 @@ export function validateClustersAgainstCoachMeta(clusterResult, getCoach) {
 }
 
 export function schemeBreakdown(teamSeasons, schemeType, metricKey) {
-  const classify = schemeType === 'off' ? classifyOffScheme : classifyDefScheme
+  const thr      = deriveSchemeThresholds(teamSeasons)
+  const base     = schemeType === 'off' ? classifyOffScheme : classifyDefScheme
+  const classify = s => base(s, thr)
   const order    = schemeType === 'off' ? OFF_SCHEME_ORDER  : DEF_SCHEME_ORDER
   const groups   = Object.fromEntries(order.map(n => [n, []]))
   for (const s of teamSeasons) groups[classify(s)].push(s)
@@ -815,7 +858,7 @@ export function dataQualityCheck(players, school, year) {
 const CLASS_LABEL = { Fr: 'Freshman', So: 'Sophomore', Jr: 'Junior', Sr: 'Senior', Grad: 'Grad', GR: 'Grad' }
 
 // Generate a short player role summary based on per-game stats. Uses absolute
-// thresholds calibrated for Ivy rotation players. Returns at most 2 role tags
+// thresholds calibrated for rotation players. Returns at most 2 role tags
 // joined by '/'; falls back to "{Class} {position}" when no tag triggers.
 //
 // Threshold notes: previous version used `or_pct` and `ast_pct`, but those
@@ -832,7 +875,7 @@ export function generatePlayerRoleSummary(player) {
   if (player.usg != null && player.usg >= 26)        tags.push('primary scorer')
   else if (player.usg != null && player.usg >= 22)   tags.push('featured scorer')
 
-  // Playmaking — per-game assists. 4.5+ is real lead-guard territory in Ivy.
+  // Playmaking — per-game assists. 4.5+ is real lead-guard territory.
   if (player.ast != null && player.ast >= 4.5)       tags.push('playmaker')
 
   // Defense — rim protection vs. perimeter steals.
@@ -1247,7 +1290,7 @@ function _filterByDraftYear(pool, { draftYearMin = null, draftYearMax = null } =
   })
 }
 
-// Find NBA prospects from combine data whose position + height closely match an Ivy player.
+// Find NBA prospects from combine data whose position + height closely match a player.
 // maxHeightDiff: how many inches away is acceptable (default 2")
 // draftYearMin / draftYearMax: optional bounds on the draft class to compare against.
 // Returns array sorted by height proximity then draft pick.
@@ -1335,8 +1378,8 @@ function _mlr(X, y) {
 // playing-time distribution and physical profile (min 5 mpg threshold).
 // Priority: Star-Driven → Guard-Heavy → Big-Dominant → Wing-Oriented → Balanced
 //
-// Thresholds calibrated against Ivy 2022–25 — usage > 27% is roughly "top
-// usage in the league each year" (the Ivy lead-scorer median is ~25%); the
+// Thresholds calibrated against the conference distribution — usage > 27% is roughly "top
+// usage in the league each year" (the lead-scorer median is ~25%); the
 // 50/30/40% minute-share cuts trace the modes in the league's positional
 // distribution. These are heuristics, not learned cluster centers.
 export const ARCHETYPES = ['Guard-Heavy', 'Big-Dominant', 'Wing-Oriented', 'Star-Driven', 'Balanced']
@@ -1401,7 +1444,7 @@ export function classifySchemeFromRoster(season, squad) {
   let offScheme, offSignals
   if (tempo > 72) {
     offScheme  = 'Transition / Run & Gun'
-    offSignals = [`Tempo ${tempo} (high Ivy tier)`, `Guards: ${guardPct.toFixed(0)}% of min`]
+    offSignals = [`Tempo ${tempo} (high tempo)`, `Guards: ${guardPct.toFixed(0)}% of min`]
   } else if (three_rate_o > 43 && guardPct > 45 && tempo > 67) {
     offScheme  = 'Pace & Space'
     offSignals = [`3-pt rate: ${three_rate_o}%`, `Guards: ${guardPct.toFixed(0)}% of min`]
@@ -1442,7 +1485,7 @@ export function classifySchemeFromRoster(season, squad) {
 
 // ── Archetype Matchup Win-Rate Matrix ────────────────────────────────────────
 // Counts wins/losses for every archetype-vs-archetype pairing across all
-// Ivy vs Ivy games in the dataset. Uses both perspectives of each game.
+// conference games in the dataset. Uses both perspectives of each game.
 export function computeArchetypeMatchupMatrix(teamSeasons, allPlayers, games) {
   const archetypeMap = {}
   for (const ts of teamSeasons) {
@@ -1457,7 +1500,7 @@ export function computeArchetypeMatchupMatrix(teamSeasons, allPlayers, games) {
   }
 
   for (const game of games) {
-    if (!game.ivy_game || game.pts_for == null) continue
+    if (!game.conf_game || game.pts_for == null) continue
     const atkType = archetypeMap[`${game.school}|${game.year}`]
     const defType = archetypeMap[`${game.opp_school}|${game.year}`]
     if (!atkType || !defType) continue
@@ -1496,7 +1539,7 @@ export function computePositionPhysicalImpact(games, allPlayers) {
 
   const rows = []
   for (const game of games) {
-    if (!game.ivy_game || game.pts_for == null || game.school >= game.opp_school) continue
+    if (!game.conf_game || game.pts_for == null || game.school >= game.opp_school) continue
     const aggA = getAgg(game.school,     game.year)
     const aggB = getAgg(game.opp_school, game.year)
 
@@ -1556,7 +1599,7 @@ export function computePositionPhysicalImpact(games, allPlayers) {
 }
 
 // ── Game Matchup Dataset ──────────────────────────────────────────────────────
-// Returns one row per unique Ivy-vs-Ivy game (school < opp_school to avoid
+// Returns one row per unique conference game (school < opp_school to avoid
 // double-counting), with position-level physical differentials and game outcomes.
 // Used as the X-axis data source for the "Game Matchup" mode in Roster & Bio.
 export function buildGameMatchupDataset(games, allPlayers) {
@@ -1587,7 +1630,7 @@ export function buildGameMatchupDataset(games, allPlayers) {
 
   const rows = []
   for (const game of games) {
-    if (!game.ivy_game || game.pts_for == null || game.school >= game.opp_school) continue
+    if (!game.conf_game || game.pts_for == null || game.school >= game.opp_school) continue
     const aggA = getAgg(game.school,     game.year)
     const aggB = getAgg(game.opp_school, game.year)
     const rA   = getRoster(game.school,     game.year)

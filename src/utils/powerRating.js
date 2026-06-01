@@ -2,7 +2,7 @@
  * Least-squares player power rating.
  *
  * Method:
- *   1. For each Ivy team-season, compute minute-weighted average of players'
+ *   1. For each team-season, compute minute-weighted average of players'
  *      centered ORTG and DRTG (centered = individual minus league average).
  *   2. OLS-regress team net efficiency (adjoe − adjde) on those two team features.
  *      This tells us how much a unit of ortg_advantage and a unit of drtg_advantage

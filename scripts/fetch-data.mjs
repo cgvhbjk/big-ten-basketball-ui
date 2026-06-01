@@ -1,5 +1,5 @@
 /**
- * fetch-data.mjs — pull real Barttorvik data for Ivy League basketball
+ * fetch-data.mjs — pull real Barttorvik data for Big Ten basketball
  *
  * Run with: node scripts/fetch-data.mjs
  * Output:   src/data/teamSeasons.json
@@ -9,24 +9,30 @@
  *   Team stats:   https://barttorvik.com/teamslicejson.php?year=Y&json=1&type=R
  *   Team results: https://barttorvik.com/Y_team_results.json  (conf + W-L detail)
  *   Player stats: https://barttorvik.com/getadvstats.php?year=Y
+ *
+ * Conference membership is taken from Barttorvik's per-year conf code (CONF
+ * below), so the 18-team union falls out automatically: the four West-Coast
+ * newcomers register as conf===B10 only from 2025 (they were Pac-12 before),
+ * so they appear in that season alone — no hardcoded team list to maintain.
  */
 
 import { writeFileSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { SCHOOLS, slugify } from '../src/data/constants.js'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 const OUT_DIR = join(__dir, '../src/data')
 
 mkdirSync(OUT_DIR, { recursive: true })
 
-// Fetch years — 2021 through 2025; skip 2020 (COVID cancellation)
-const YEARS = [2021, 2022, 2023, 2024, 2025]
+// Barttorvik conference code for the Big Ten. If a year comes back with zero
+// teams, double-check this against the "distinct conf codes" in a team_results
+// response — Barttorvik uses short codes (B10, B12, ACC, SEC, …).
+const CONF = 'B10'
 
-const IVY_TEAMS = new Set([
-  'Harvard', 'Yale', 'Penn', 'Princeton',
-  'Dartmouth', 'Cornell', 'Brown', 'Columbia',
-])
+// Seasons to fetch — 2022 through 2025 (matches src/data/constants.js YEARS).
+const YEARS = [2022, 2023, 2024, 2025]
 
 // ---------- helpers ----------
 
@@ -53,20 +59,21 @@ function sleep(ms) {
 //   efg_o, efg_d, tov_o, tov_d, orb, drb, ftr_o, ftr_d,
 //   ft_pct, two_pct_o, two_pct_d, three_pct_o, three_pct_d,
 //   blk_o, blk_d, stl_o, stl_d, three_rate_o, three_rate_d, tempo]
+//
+// teamslice carries no conference field, so this parses every D1 team; the
+// caller keeps only those present in that year's Big Ten results map.
 function parseTeamSlice(row, year) {
   const [team, adjoe, adjde, barthag, record, wins, games,
     efg_o, efg_d, tov_o, tov_d, orb, drb, ftr_o, ftr_d,
     ft_pct, two_pct_o, two_pct_d, three_pct_o, three_pct_d,
     blk_o, blk_d, stl_o, stl_d, three_rate_o, three_rate_d, tempo] = row
 
-  if (!IVY_TEAMS.has(team)) return null
-
   const w = Number(wins)
   const g = Number(games)
   const losses = g - w
 
   return {
-    school: team.toLowerCase(),
+    school: slugify(team),
     year,
     // record
     wins: w,
@@ -114,9 +121,9 @@ function parseTeamSlice(row, year) {
 function parseTeamResults(row) {
   const [rank, team, conf, record, adjoe, , adjde, , barthag, ,
     wins, losses, conf_wins, conf_losses, conf_record] = row
-  if (conf !== 'Ivy') return null
+  if (conf !== CONF) return null
   return {
-    school: team.toLowerCase(),
+    school: slugify(team),
     rank: Number(rank),
     conf_wins: Number(conf_wins),
     conf_losses: Number(conf_losses),
@@ -143,16 +150,11 @@ function parseTeamResults(row) {
 //  55:oreb_above_avg  56:dreb_above_avg
 //  57:oreb_pg  58:dreb_pg  59:treb_pg  60:ast_pg  61:stl_pg  62:blk_pg  63:pts_pg
 //  64:pos_type  65:war  66:birthdate
-const IVY_TEAM_NAMES = new Set([
-  'Harvard', 'Yale', 'Penn', 'Princeton',
-  'Dartmouth', 'Cornell', 'Brown', 'Columbia',
-])
-
 function parsePlayer(row, year) {
   if (!Array.isArray(row) || row.length < 64) return null
   const team = row[1]
   const conf = row[2]
-  if (conf !== 'Ivy' && !IVY_TEAM_NAMES.has(team)) return null
+  if (conf !== CONF) return null
 
   const gp = Number(row[3])
   if (gp < 5) return null
@@ -160,7 +162,7 @@ function parsePlayer(row, year) {
   return {
     name:      row[0],
     team,
-    school:    team.toLowerCase(),
+    school:    slugify(team),
     conf,
     year,
     class_yr:  row[25],           // "Fr", "So", "Jr", "Sr"
@@ -223,7 +225,8 @@ async function main() {
       console.warn(`  teamslicejson failed for ${year}: ${e.message}`)
     }
 
-    // team results (conf record + rank)
+    // team results (conf record + rank) — also defines this year's Big Ten
+    // membership: resultsMap holds only conf===B10 teams.
     let resultsMap = {}
     try {
       const resultsRows = await fetchJson(
@@ -236,12 +239,16 @@ async function main() {
     } catch (e) {
       console.warn(`  team_results failed for ${year}: ${e.message}`)
     }
+    if (Object.keys(resultsMap).length === 0) {
+      console.warn(`  ⚠ no ${CONF} teams in ${year}_team_results — teamSeasons will be empty for ${year}`)
+    }
 
-    // merge
+    // merge — keep only teams in this year's Big Ten membership
     for (const row of sliceRows) {
       const season = parseTeamSlice(row, year)
       if (!season) continue
-      const extra = resultsMap[season.school] ?? {}
+      const extra = resultsMap[season.school]
+      if (!extra) continue // not a Big Ten team this season
       teamSeasons.push({
         ...season,
         rank:          extra.rank ?? null,
@@ -260,12 +267,12 @@ async function main() {
       const playerRows = await fetchJson(
         `https://barttorvik.com/getadvstats.php?year=${year}`
       )
-      let ivyCount = 0
+      let confCount = 0
       for (const row of playerRows) {
         const p = parsePlayer(row, year)
-        if (p) { players.push(p); ivyCount++ }
+        if (p) { players.push(p); confCount++ }
       }
-      console.log(`  players: ${ivyCount} Ivy League players found`)
+      console.log(`  players: ${confCount} Big Ten players found`)
     } catch (e) {
       console.warn(`  getadvstats failed for ${year}: ${e.message}`)
     }
@@ -286,9 +293,14 @@ async function main() {
   )
   console.log(`Wrote ${players.length} player records to src/data/players.json`)
 
-  // sanity check
+  // sanity check — surface any slug that isn't a known Big Ten school (would
+  // mean a Barttorvik name slugified to something SCHOOL_META doesn't cover).
   const schools = [...new Set(teamSeasons.map(s => s.school))].sort()
-  console.log(`\nTeams found: ${schools.join(', ')}`)
+  console.log(`\nTeams found (${schools.length}): ${schools.join(', ')}`)
+  const unknown = schools.filter(s => !SCHOOLS.includes(s))
+  if (unknown.length) {
+    console.warn(`  ⚠ slugs not in constants.js SCHOOLS: ${unknown.join(', ')} — add them or fix slugify`)
+  }
   const yearsCovered = [...new Set(teamSeasons.map(s => s.year))].sort()
   console.log(`Years covered: ${yearsCovered.join(', ')}`)
 }
