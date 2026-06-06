@@ -63,7 +63,7 @@ export function pearsonBootstrapCI(xs, ys, { B = 5000, alpha = 0.05, seed = 1, m
   if (r == null) return null
 
   const rand = _mulberry32(seed)
-  const samples = new Array(B)
+  const samples = []
   const xb = new Array(n)
   const yb = new Array(n)
   for (let b = 0; b < B; b++) {
@@ -72,11 +72,16 @@ export function pearsonBootstrapCI(xs, ys, { B = 5000, alpha = 0.05, seed = 1, m
       xb[i] = xs[k]; yb[i] = ys[k]
     }
     const rb = pearsonCorrelation(xb, yb, { minN })
-    samples[b] = rb == null ? 0 : rb
+    // Drop degenerate (zero-variance) resamples rather than recording them as
+    // r=0 — folding 0s into the percentiles biases the CI toward zero and can
+    // spuriously make it straddle 0, weakening the CI-excludes-zero test.
+    if (rb != null) samples.push(rb)
   }
+  if (samples.length === 0) return { r, ciLow: null, ciHigh: null, n, B }
   samples.sort((a, b) => a - b)
-  const lo = samples[Math.max(0, Math.floor((alpha / 2) * B))]
-  const hi = samples[Math.min(B - 1, Math.ceil((1 - alpha / 2) * B) - 1)]
+  const m = samples.length
+  const lo = samples[Math.max(0, Math.floor((alpha / 2) * m))]
+  const hi = samples[Math.min(m - 1, Math.ceil((1 - alpha / 2) * m) - 1)]
   return { r, ciLow: lo, ciHigh: hi, n, B }
 }
 

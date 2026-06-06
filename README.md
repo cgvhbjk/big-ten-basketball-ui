@@ -6,25 +6,32 @@ A React web app for exploring Big Ten men's basketball data (2022–2025). Built
 
 ## Pages
 
-### Matchup Analyzer (`/analyzer`)
-Head-to-head matchup projections using adjusted efficiency margins and a win-probability model fit on conference game results.
+The app has **two routes**, `/teams` and `/players`. Older deep-links
+(`/analyzer`, `/insights`, `/epa`) redirect to `/teams`.
 
-### Insights Lab (`/insights`)
-Three analysis modes on one page:
+### Teams (`/teams`)
+A hub with three tabbed sub-views:
 
-- **Metric Correlation** — scatter any two team metrics across all team-seasons. Shows Pearson r, regression line, automatic threshold detection (best split point on the x-axis), time-window stability, and style-interaction breakdowns by tempo or 3-point-rate tercile.
-- **Scheme Analysis** — classifies every team-season into offensive archetypes (Run & Gun / Transition Attack / Spread Offense / Grind It Out) and defensive archetypes (High Pressure / Rim Protection / Coverage / Standard), then compares any outcome metric across schemes. Scheme cut-points are derived from the loaded conference distribution, so they self-calibrate to the data.
-- **Roster & Bio** — aggregates per-player biodata (avg height, avg class-year experience, % guards/forwards/bigs) to the team-season level and scatters against any outcome metric. A second panel scatters individual player biodata against any per-game stat.
+- **Matchup** — head-to-head projections using adjusted efficiency margins and a win-probability model fit on conference game results, with a four-factors radar, position-edge breakdown, scheme summary, and roster comparison.
+- **Insights** — four analysis modes:
+  - *Metric Correlation* — scatter any two team metrics. Shows Pearson r, a bootstrap CI and permutation p-value, a regression line, automatic threshold detection (best split point on the x-axis), time-window stability, and style-interaction breakdowns by tempo or 3-point-rate tercile.
+  - *FDR Scan* — sweeps many metric pairs and applies Benjamini–Hochberg false-discovery-rate correction so "significant" hits survive multiple testing.
+  - *Scheme Analysis* — classifies every team-season into offensive archetypes (Run & Gun / Transition Attack / Spread Offense / Grind It Out) and defensive archetypes (High Pressure / Rim Protection / Coverage / Standard), then compares any outcome across schemes. Cut-points self-calibrate to the loaded distribution; an empirical k-means clustering is also provided.
+  - *Roster & Bio* — minute-weighted team biodata aggregates (avg height, class-year experience, % guard/forward/big minutes) scattered against any outcome metric, plus a player-level biodata scatter.
+- **EPA Models** — Expected Points Added from a four-factor regression pipeline (OLS, cross-validated ridge, split ridge, sign-constrained NNLS) with automatic model selection and diagnostics. See `EPA_MODELS.md`.
 
-### Player Lab (`/players`)
+### Players (`/players`)
 Three tabs:
 
-- **Profile** — player selector with radar chart normalized within the league pool for the selected year, full efficiency stats, and a side-by-side roster comparison with any other school/year.
-- **Power Rank** — conference-wide leaderboard using lineup-adjusted power ratings (see below).
-- **Positions** — average stats by Barttorvik position type with dual-axis bar chart (ORTG left axis, Pts/G right axis).
+- **Profile** — player selector with a radar normalized within the selected year's league pool, full efficiency stats, and a side-by-side comparison with any other school/year.
+- **Positions** — average stats by Barttorvik position type with a dual-axis bar chart (ORTG left axis, Pts/G right axis).
+- **Training Plan** — position-specific NBA-combine target ranges, gap analysis against entered measurements, a prioritized strength-&-conditioning plan, and NBA comparables.
 
-### EPA Lab (`/epa`) & Luck Lab (`/luck`)
-Expected Points Added from regression on the Dean Oliver four factors, and Pythagorean win-expectation vs. actual wins.
+> **Implemented but not yet surfaced in the UI.** The repo ships two finished,
+> unit-tested analytics engines that no current route renders: lineup-adjusted
+> player **power ratings** (`src/utils/powerRating.js`, methodology below) and
+> **Pythagorean record-luck** (`src/utils/calibration.js`). They're exercised by
+> the precompute step and the test suite but are not wired into a page.
 
 ## Power Rating Methodology
 
