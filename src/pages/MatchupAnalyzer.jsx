@@ -14,12 +14,10 @@ import Accordion from '../components/shared/Accordion.jsx'
 import PageConclusions from '../components/shared/PageConclusions.jsx'
 import MethodologyPanel from '../components/shared/MethodologyPanel.jsx'
 import { T } from '../styles/theme.js'
-import { getCoach } from '../data/coachMeta.js'
 import {
   classifyOffScheme, classifyDefScheme, deriveSchemeThresholds,
   comparePositionProfiles, generateMatchupInsights, generatePlayerRoleSummary,
-  parseHeightIn, buildPositionWeightedAggregates, dataQualityCheck,
-  classifySchemeFromRoster, computeTeamArchetype,
+  parseHeightIn, classifySchemeFromRoster, computeTeamArchetype,
 } from '../utils/insightEngine.js'
 import { predictWinPctCalibrated } from '../utils/calibration.js'
 import { getWinModel } from '../utils/calibrationCache.js'
@@ -104,16 +102,6 @@ function fmtWinPctDisplay(p, crossYear) {
 function inchesToFtIn(inches) {
   if (inches == null) return '—'
   return `${Math.floor(inches / 12)}'${Math.round(inches % 12)}"`
-}
-
-function DiffBadge({ value, unit = '', invert = false }) {
-  if (value == null) return <span style={{ color: '#4b5563', fontSize: 12 }}>—</span>
-  const positive = invert ? value < 0 : value > 0
-  const color = value === 0 ? '#6b7280' : positive ? '#10b981' : '#ef4444'
-  const sign  = value > 0 ? '+' : ''
-  return (
-    <span style={{ color, fontWeight: 700, fontSize: 13 }}>{sign}{value}{unit}</span>
-  )
 }
 
 // CompareRow — one head-to-head stat as a calm "A · label · B" row. The
@@ -241,10 +229,9 @@ export default function MatchupAnalyzer({ embedded = false }) {
   } = useStore()
 
   const [activeSection, setActiveSection] = useState('overview')
-  // Position-aggregate weighting mode — 'minutes' weights by playing time
-  // (default; matches what coaches actually see on the floor), 'roster' counts
-  // each player equally (closer to a recruiting view).
-  const [posWeightBy, setPosWeightBy] = useState('minutes')
+  // Position aggregates (used by the conclusions' "position edge") weight by
+  // minutes played — what coaches actually see on the floor.
+  const posWeightBy = 'minutes'
 
   const navigate = useNavigate()
   const setPlayerFromMatchup = usePlayerStore(s => s.setPlayerFromMatchup)
@@ -277,9 +264,6 @@ export default function MatchupAnalyzer({ embedded = false }) {
       .sort((a, b) => b.min_pg - a.min_pg)
   , [analyzerTeamB, analyzerYearB])
 
-  const coachA = useMemo(() => getCoach(analyzerTeamA, analyzerYearA), [analyzerTeamA, analyzerYearA])
-  const coachB = useMemo(() => getCoach(analyzerTeamB, analyzerYearB), [analyzerTeamB, analyzerYearB])
-
   // Conference-relative scheme cut-points, derived once from the full dataset.
   const schemeThr = useMemo(() => deriveSchemeThresholds(teamSeasons), [])
   const schemeOffA = useMemo(() => seasonA ? classifyOffScheme(seasonA, schemeThr) : '—', [seasonA, schemeThr])
@@ -290,9 +274,6 @@ export default function MatchupAnalyzer({ embedded = false }) {
   const posCompare = useMemo(() =>
     comparePositionProfiles(squadA, squadB, { weightBy: posWeightBy })
   , [squadA, squadB, posWeightBy])
-
-  const posAggA = useMemo(() => buildPositionWeightedAggregates(squadA, { weightBy: posWeightBy }), [squadA, posWeightBy])
-  const posAggB = useMemo(() => buildPositionWeightedAggregates(squadB, { weightBy: posWeightBy }), [squadB, posWeightBy])
 
   const rosterSchemeA = useMemo(() => classifySchemeFromRoster(seasonA, squadA), [seasonA, squadA])
   const rosterSchemeB = useMemo(() => classifySchemeFromRoster(seasonB, squadB), [seasonB, squadB])
@@ -627,12 +608,12 @@ export default function MatchupAnalyzer({ embedded = false }) {
             </div>
           </Accordion>
 
-          <Accordion title="Coaching & scheme">
+          <Accordion title="Schemes & archetype">
             <div className="bt-grid bt-grid--2" style={{ gap: 16 }}>
               {[
-                { school: analyzerTeamA, year: analyzerYearA, coach: coachA, color: colorA, offScheme: schemeOffA, defScheme: schemeDefA, meta: metaA },
-                { school: analyzerTeamB, year: analyzerYearB, coach: coachB, color: colorB, offScheme: schemeOffB, defScheme: schemeDefB, meta: metaB },
-              ].map(({ school, year, coach, color, offScheme, defScheme, meta }, i) => (
+                { school: analyzerTeamA, year: analyzerYearA, color: colorA, offScheme: schemeOffA, defScheme: schemeDefA, meta: metaA },
+                { school: analyzerTeamB, year: analyzerYearB, color: colorB, offScheme: schemeOffB, defScheme: schemeDefB, meta: metaB },
+              ].map(({ school, year, color, offScheme, defScheme, meta }, i) => (
                 <div key={i} style={{ background: T.surf2, borderRadius: 10, padding: '16px 18px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, borderBottom: `1px solid ${T.border}`, paddingBottom: 12 }}>
                     <TeamBadge school={school} size="md" showName={false} />
@@ -667,207 +648,7 @@ export default function MatchupAnalyzer({ embedded = false }) {
         </div>
       )}
 
-      {/* ── Position Breakdown (physical section removed — use Position Breakdown tab) ── */}
-      {activeSection === 'physical_removed' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={CARD}>
-            <div style={SECTION_TITLE}>Position-Level Physical Comparison</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
-              Playing-time weighted averages · min 5 min/g · Diff = Team A minus Team B
-            </div>
-
-            {/* Headers */}
-            <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 80px 1fr 1fr 80px', gap: 8, marginBottom: 8 }}>
-              {['POS', metaA.abbr + ' Ht', metaB.abbr + ' Ht', 'DIFF', metaA.abbr + ' Exp', metaB.abbr + ' Exp', 'DIFF'].map((h, i) => (
-                <div key={i} style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '4px 8px', borderBottom: '1px solid #2c2c2c' }}>{h}</div>
-              ))}
-            </div>
-            {posCompare.map(row => (
-              <div key={row.position} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 80px 1fr 1fr 80px', gap: 8, padding: '6px 0', borderBottom: '1px solid #1a1a1a' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#a5b4fc', padding: '0 8px' }}>{row.position}</div>
-                <div style={{ fontSize: 13, color: '#ebebeb', padding: '0 8px' }}>
-                  {row.teamA ? `${inchesToFtIn(row.teamA.avgHeightIn)} (${row.teamA.n}p)` : <span style={{ color: '#4b5563' }}>—</span>}
-                </div>
-                <div style={{ fontSize: 13, color: '#ebebeb', padding: '0 8px' }}>
-                  {row.teamB ? `${inchesToFtIn(row.teamB.avgHeightIn)} (${row.teamB.n}p)` : <span style={{ color: '#4b5563' }}>—</span>}
-                </div>
-                <div style={{ padding: '0 8px' }}>
-                  <DiffBadge value={row.diffHeightIn} unit='"' />
-                </div>
-                <div style={{ fontSize: 13, color: '#ebebeb', padding: '0 8px' }}>
-                  {row.teamA?.avgExperience != null ? `${row.teamA.avgExperience} yr` : <span style={{ color: '#4b5563' }}>—</span>}
-                </div>
-                <div style={{ fontSize: 13, color: '#ebebeb', padding: '0 8px' }}>
-                  {row.teamB?.avgExperience != null ? `${row.teamB.avgExperience} yr` : <span style={{ color: '#4b5563' }}>—</span>}
-                </div>
-                <div style={{ padding: '0 8px' }}>
-                  <DiffBadge value={row.diffExperience} unit=' yr' />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Position performance comparison */}
-          <div style={CARD}>
-            <div style={SECTION_TITLE}>Position-Level Performance (Weighted)</div>
-            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
-              ORTG, eFG%, BPM weighted by minutes played at each position
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 80px 1fr 1fr 80px 1fr 1fr 80px', gap: 6, marginBottom: 8 }}>
-              {['POS', metaA.abbr+' ORTG', metaB.abbr+' ORTG', 'Δ', metaA.abbr+' eFG', metaB.abbr+' eFG', 'Δ', metaA.abbr+' BPM', metaB.abbr+' BPM', 'Δ'].map((h, i) => (
-                <div key={i} style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', padding: '4px 6px', borderBottom: '1px solid #2c2c2c' }}>{h}</div>
-              ))}
-            </div>
-            {posCompare.map(row => (
-              <div key={row.position} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 80px 1fr 1fr 80px 1fr 1fr 80px', gap: 6, padding: '6px 0', borderBottom: '1px solid #1a1a1a' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#a5b4fc', padding: '0 6px' }}>{row.position}</div>
-                <div style={{ fontSize: 12, color: colorA, padding: '0 6px' }}>{row.teamA?.avgOrtg ?? '—'}</div>
-                <div style={{ fontSize: 12, color: colorB, padding: '0 6px' }}>{row.teamB?.avgOrtg ?? '—'}</div>
-                <div style={{ padding: '0 6px' }}><DiffBadge value={row.diffOrtg} /></div>
-                <div style={{ fontSize: 12, color: colorA, padding: '0 6px' }}>{row.teamA?.avgEfg != null ? row.teamA.avgEfg+'%' : '—'}</div>
-                <div style={{ fontSize: 12, color: colorB, padding: '0 6px' }}>{row.teamB?.avgEfg != null ? row.teamB.avgEfg+'%' : '—'}</div>
-                <div style={{ padding: '0 6px' }}>
-                  <DiffBadge value={row.teamA?.avgEfg != null && row.teamB?.avgEfg != null ? +(row.teamA.avgEfg - row.teamB.avgEfg).toFixed(1) : null} unit='%' />
-                </div>
-                <div style={{ fontSize: 12, color: colorA, padding: '0 6px' }}>{row.teamA?.avgBpm != null ? (row.teamA.avgBpm > 0 ? '+' : '') + row.teamA.avgBpm : '—'}</div>
-                <div style={{ fontSize: 12, color: colorB, padding: '0 6px' }}>{row.teamB?.avgBpm != null ? (row.teamB.avgBpm > 0 ? '+' : '') + row.teamB.avgBpm : '—'}</div>
-                <div style={{ padding: '0 6px' }}><DiffBadge value={row.diffBpm} /></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Positional comparison — folded into the Rosters tab as a collapsed expander ── */}
-      {activeSection === 'roster' && (
-        <Accordion title="Positional comparison — height, experience &amp; efficiency">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: '#6b7280' }}>
-              Per-position cards (min 5 mpg) · height, weight, experience, efficiency
-              {posWeightBy === 'minutes'
-                ? ' — weighted by minutes played'
-                : ' — each rostered player counts equally'}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-              <span style={{ color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Average</span>
-              {[
-                ['minutes', 'By minutes'],
-                ['roster',  'Roster avg'],
-              ].map(([v, lbl]) => (
-                <button
-                  key={v}
-                  onClick={() => setPosWeightBy(v)}
-                  style={{
-                    padding: '4px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                    border: `1px solid ${posWeightBy === v ? '#a5b4fc' : '#2c2c2c'}`,
-                    background: posWeightBy === v ? '#a5b4fc22' : 'transparent',
-                    color: posWeightBy === v ? '#a5b4fc' : '#6b7280',
-                    cursor: 'pointer',
-                  }}>
-                  {lbl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Side-by-side position cards */}
-          <div className="bt-grid bt-grid--2" style={{ gap: 20 }}>
-            {[
-              { agg: posAggA, school: analyzerTeamA, year: analyzerYearA, color: colorA, meta: metaA },
-              { agg: posAggB, school: analyzerTeamB, year: analyzerYearB, color: colorB, meta: metaB },
-            ].map(({ agg, school, year, color, meta }, i) => {
-              const quality = dataQualityCheck(players, school, year)
-              return (
-                <div key={i}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color, marginBottom: 12 }}>{meta.fullName} · {year}</div>
-                  {quality.hasWarnings && (
-                    <div style={{ marginBottom: 10, padding: '6px 10px', background: '#f59e0b11', border: '1px solid #f59e0b33', borderRadius: 6 }}>
-                      {quality.warnings.map((w, i) => (
-                        <div key={i} style={{ fontSize: 11, color: '#f59e0b' }}>⚠ {w}</div>
-                      ))}
-                    </div>
-                  )}
-                  {['Guard', 'Forward', 'Big'].map(pos => {
-                    const g = agg[pos]
-                    if (!g) return (
-                      <div key={pos} style={{ ...CARD, marginBottom: 8, opacity: 0.4 }}>
-                        <div style={{ fontSize: 12, color: '#4b5563' }}>{pos}: no data</div>
-                      </div>
-                    )
-                    return (
-                      <div key={pos} style={{ ...CARD, marginBottom: 10, borderLeft: `3px solid ${color}` }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color }}>{pos}</div>
-                            <div style={{ fontSize: 11, color: '#4b5563' }}>{g.n} players · {g.totalMinPg} total min/g</div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 16, fontWeight: 700, color: '#ebebeb' }}>{inchesToFtIn(g.avgHeightIn)}</div>
-                            <div style={{ fontSize: 10, color: '#6b7280' }}>avg height{g.missingHeight > 0 ? ` (${g.missingHeight} missing)` : ''}</div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-                          {[
-                            ['Wt',  g.avgWeightLbs  != null ? g.avgWeightLbs+'lb' : '—'],
-                            ['Exp', g.avgExperience != null ? g.avgExperience+'yr' : '—'],
-                            ['ORTG', g.avgOrtg ?? '—'],
-                            ['eFG', g.avgEfg != null ? g.avgEfg+'%' : '—'],
-                            ['BPM', g.avgBpm != null ? (g.avgBpm > 0 ? '+' : '') + g.avgBpm : '—'],
-                          ].map(([lbl, val]) => (
-                            <div key={lbl} style={{ background: '#1a1a1a', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#ebebeb' }}>{val}</div>
-                              <div style={{ fontSize: 10, color: '#4b5563' }}>{lbl}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
-          </div>
-
-
-          {/* Diff table */}
-          <div style={CARD}>
-            <div style={SECTION_TITLE}>
-              Head-to-Head Differences (Δ = {metaA.abbr} − {metaB.abbr})
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead>
-                  <tr>
-                    {['Pos', 'Ht A', 'Ht B', 'Ht Δ', 'Wt A', 'Wt B', 'Exp Δ', 'ORTG Δ', 'eFG Δ', 'BPM Δ'].map(h => (
-                      <th key={h} style={{ padding: '6px 10px', textAlign: 'left', color: '#6b7280', fontSize: 10, textTransform: 'uppercase', borderBottom: '1px solid #2c2c2c', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {posCompare.map(row => (
-                    <tr key={row.position} style={{ borderBottom: '1px solid #1a1a1a' }}>
-                      <td style={{ padding: '8px 10px', fontWeight: 700, color: '#a5b4fc' }}>{row.position}</td>
-                      <td style={{ padding: '8px 10px', color: colorA }}>{inchesToFtIn(row.teamA?.avgHeightIn)}</td>
-                      <td style={{ padding: '8px 10px', color: colorB }}>{inchesToFtIn(row.teamB?.avgHeightIn)}</td>
-                      <td style={{ padding: '8px 10px' }}><DiffBadge value={row.diffHeightIn} unit='"' /></td>
-                      <td style={{ padding: '8px 10px', color: colorA }}>{posAggA[row.position]?.avgWeightLbs != null ? posAggA[row.position].avgWeightLbs+'lb' : '—'}</td>
-                      <td style={{ padding: '8px 10px', color: colorB }}>{posAggB[row.position]?.avgWeightLbs != null ? posAggB[row.position].avgWeightLbs+'lb' : '—'}</td>
-                      <td style={{ padding: '8px 10px' }}><DiffBadge value={row.diffExperience} unit=' yr' /></td>
-                      <td style={{ padding: '8px 10px' }}><DiffBadge value={row.diffOrtg} /></td>
-                      <td style={{ padding: '8px 10px' }}><DiffBadge value={row.teamA?.avgEfg != null && row.teamB?.avgEfg != null ? +(row.teamA.avgEfg - row.teamB.avgEfg).toFixed(1) : null} unit='%' /></td>
-                      <td style={{ padding: '8px 10px' }}><DiffBadge value={row.diffBpm} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        </Accordion>
-      )}
-
-      {/* ── Rosters: depth charts + (collapsed) positional comparison ── */}
+      {/* ── Rosters: notable players + depth charts ── */}
       {activeSection === 'roster' && (
         <div className="bt-grid bt-grid--2" style={{ gap: 20 }}>
           {[
@@ -962,26 +743,33 @@ export default function MatchupAnalyzer({ embedded = false }) {
             </div>
           ))}
 
-          {/* Scheme comparison summary */}
+          {/* Scheme comparison — a tight full-width matrix (off/def × both teams) */}
           <div style={{ ...CARD, marginTop: 8 }}>
             <div style={SECTION_TITLE}>Scheme Summary</div>
-            <div className="bt-grid bt-grid--2" style={{ gap: 20 }}>
-              {[
-                { team: analyzerTeamA, meta: metaA, color: colorA, coach: coachA, offScheme: schemeOffA, defScheme: schemeDefA },
-                { team: analyzerTeamB, meta: metaB, color: colorB, coach: coachB, offScheme: schemeOffB, defScheme: schemeDefB },
-              ].map(({ team, meta, color, coach, offScheme, defScheme }, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color, marginBottom: 10 }}>{meta.abbr}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Coach</div>
-                  <div style={{ fontSize: 12, color: '#ebebeb', marginBottom: 8 }}>{coach.name}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Offense</div>
-                  <div style={{ fontSize: 12, color: '#f59e0b', marginBottom: 2 }}>{offScheme}</div>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>{coach.style}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Defense</div>
-                  <div style={{ fontSize: 12, color: '#6366f1' }}>{defScheme}</div>
-                </div>
-              ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', alignItems: 'center', paddingBottom: 4 }}>
+              <div />
+              <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorA }}>{metaA.abbr}</div>
+              <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorB }}>{metaB.abbr}</div>
             </div>
+            {[
+              { label: 'Offense', a: schemeOffA, b: schemeOffB, color: T.amber },
+              { label: 'Defense', a: schemeDefA, b: schemeDefB, color: T.accentSoft },
+            ].map(({ label, a, b, color }) => {
+              const pill = (text) => (
+                <span style={{
+                  display: 'inline-block', fontSize: 14, fontWeight: 600, color,
+                  background: `${color}1a`, border: `1px solid ${color}40`,
+                  borderRadius: 999, padding: '6px 18px',
+                }}>{text}</span>
+              )
+              return (
+                <div key={label} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', alignItems: 'center', padding: '16px 0', borderTop: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 11, color: T.textLow, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+                  <div style={{ textAlign: 'center' }}>{pill(a)}</div>
+                  <div style={{ textAlign: 'center' }}>{pill(b)}</div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

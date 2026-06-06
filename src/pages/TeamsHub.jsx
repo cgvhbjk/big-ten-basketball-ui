@@ -23,7 +23,7 @@ export default function TeamsHub() {
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       {/* Primary view switcher for the Teams hub */}
       <div style={{ background: T.bgDeep, borderBottom: `1px solid ${T.border}` }}>
-        <div className="bt-page" style={{ paddingTop: 10, paddingBottom: 10 }}>
+        <div className="bt-page" style={{ paddingTop: 8, paddingBottom: 8 }}>
           <SectionTabs
             tabs={SECTIONS}
             value={section}

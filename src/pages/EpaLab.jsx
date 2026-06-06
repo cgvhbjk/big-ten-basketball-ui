@@ -451,7 +451,7 @@ export default function EpaLab({ embedded = false }) {
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
         title={embedded ? null : 'EPA Lab'}
-        subtitle="Derives event EPA from regression on Dean Oliver four factors (eFG%, TOV%, ORB%, FTR). Two data tiers: season aggregates and per-game box scores."
+        subtitle="Event EPA from a four-factor regression (eFG%, TOV%, ORB%, FTR) — season + per-game tiers."
         stats={pipeline.status !== 'error' ? [
           { label: 'Model',     value: sel?.replace(/_/g, ' ') ?? '—', color: T.accentSoft },
           { label: 'Off CVR²',  value: pipeline.models?.ridge_split?.offCvR2 ?? '—', color: T.green },
