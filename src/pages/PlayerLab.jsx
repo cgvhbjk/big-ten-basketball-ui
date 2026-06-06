@@ -491,14 +491,6 @@ export default function PlayerLab() {
 
   const headerStats = []
 
-  const TAB_NAV = (
-    <div style={{ display: 'flex', gap: 4 }}>
-      {[['profile','Profile'], ['positions','Positions'], ['training','Training Plan']].map(([v, lbl]) => (
-        <button key={v} style={BTN(tab === v)} onClick={() => setTab(v)}>{lbl}</button>
-      ))}
-    </div>
-  )
-
   return (
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
@@ -541,12 +533,19 @@ export default function PlayerLab() {
                 )}
               </>
             )}
-            <div style={{ marginLeft: tab !== 'positions' ? 6 : 0 }}>{TAB_NAV}</div>
           </div>
         }
+        tabs={[
+          { value: 'profile',   label: 'Profile' },
+          { value: 'positions', label: 'Positions' },
+          { value: 'training',  label: 'Training Plan' },
+        ]}
+        activeTab={tab}
+        onTabChange={setTab}
+        tabsLabel="Player Lab views"
       />
 
-      <div style={{ padding: '0 28px 28px', maxWidth: 1320, margin: '0 auto' }}>
+      <div className="bt-page" style={{ paddingBottom: 28, maxWidth: 1320, margin: '0 auto' }}>
 
       {arrivedFromMatchup && (
         <div style={{ paddingTop: 16 }}>
@@ -576,8 +575,8 @@ export default function PlayerLab() {
                 <RadarChart data={dualRadarData} margin={{ top: 8, right: 30, bottom: 8, left: 30 }}>
                   <PolarGrid stroke={T.border} />
                   <PolarAngleAxis dataKey="axis" tick={{ fill: T.textLow, fontSize: 10 }} />
-                  <Radar dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} dot={false} />
-                  <Radar dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} dot={false} />
+                  <Radar dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Radar dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} dot={false} isAnimationActive={false} />
                   <Tooltip
                     contentStyle={{ background: T.surf2, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 11 }}
                     formatter={(v, key) => [(v * 100).toFixed(0) + 'th pctile', key === 'A' ? player.name.split(' ').slice(-1)[0] : comparePlayer.name.split(' ').slice(-1)[0]]}
@@ -588,7 +587,7 @@ export default function PlayerLab() {
           )}
 
           {/* Side-by-side player cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          <div className="bt-grid bt-grid--2" style={{ gap: 24 }}>
 
             {/* ── Primary player card ── */}
             {player ? (
@@ -629,7 +628,7 @@ export default function PlayerLab() {
                       <RadarChart data={radarData} margin={{ top: 4, right: 20, bottom: 4, left: 20 }}>
                         <PolarGrid stroke={T.border} />
                         <PolarAngleAxis dataKey="axis" tick={{ fill: T.textLow, fontSize: 10 }} />
-                        <Radar dataKey="Player" stroke={colorA} fill={colorA} fillOpacity={0.22} strokeWidth={2} />
+                        <Radar dataKey="Player" stroke={colorA} fill={colorA} fillOpacity={0.22} strokeWidth={2} isAnimationActive={false} />
                         <Tooltip contentStyle={{ background: T.surf2, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [(v * 100).toFixed(0) + 'th pctile', '']} />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -847,7 +846,7 @@ export default function PlayerLab() {
                       <div style={{ fontSize: 11, fontWeight: 600, color: T.textMd, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         Physical Measurements — enter measured values
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                      <div className="bt-grid bt-grid--4" style={{ gap: 10 }}>
                         {physical.map(t => <MetricCard key={t.key} t={t} inputVal={combineInputs[t.key] ?? ''} {...mcProps} />)}
                       </div>
                     </div>
@@ -857,7 +856,7 @@ export default function PlayerLab() {
                       <div style={{ fontSize: 11, fontWeight: 600, color: T.amber, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         Body Composition — enter your results
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                      <div className="bt-grid bt-grid--3" style={{ gap: 10 }}>
                         {composition.map(t => <MetricCard key={t.key} t={t} inputVal={combineInputs[t.key] ?? ''} {...mcProps} />)}
                       </div>
                     </div>
@@ -867,7 +866,7 @@ export default function PlayerLab() {
                       <div style={{ fontSize: 11, fontWeight: 600, color: T.cyan, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         Athletic Testing — enter your results
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                      <div className="bt-grid bt-grid--4" style={{ gap: 10 }}>
                         {athletic.map(t => <MetricCard key={t.key} t={t} inputVal={combineInputs[t.key] ?? ''} {...mcProps} />)}
                       </div>
                     </div>
@@ -875,7 +874,7 @@ export default function PlayerLab() {
                     {/* College production vs comparable draftees */}
                     {nbaBenchmarks && (
                       <Accordion title="College Production vs Drafted Comparables" badge={`n=${nbaBenchmarks.n} draftees · ${nbaBenchmarks.draftYearMin}–${nbaBenchmarks.draftYearMax}`}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
+                        <div className="bt-grid bt-grid--4" style={{ gap: 10, marginBottom: 14 }}>
                           {[
                             { lbl: 'PPG',  val: player.pts,    target: nbaBenchmarks.avgPpg, unit: '',  higherBetter: true },
                             { lbl: 'eFG%', val: player.efg,    target: nbaBenchmarks.avgEfg, unit: '%', higherBetter: true },
@@ -978,7 +977,7 @@ export default function PlayerLab() {
                             ⚡ {rec.gapNote}
                           </div>
                         )}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
+                        <div className="bt-grid bt-grid--2" style={{ gap: 12, marginBottom: 10 }}>
                           <div style={{ background: T.surf2, borderRadius: 8, padding: '10px 12px' }}>
                             <div style={{ fontSize: 10, color: T.textMin, textTransform: 'uppercase', marginBottom: 5 }}>Combine Target</div>
                             <div style={{ fontSize: 12, color: T.accentSoft, fontWeight: 600, lineHeight: 1.4 }}>{rec.target}</div>

@@ -1,25 +1,25 @@
 {
-  "generatedAt": "2026-05-07T01:47:17.836Z",
-  "dataHash": "ts32-g911-wp15.794",
+  "generatedAt": "2026-06-06T01:01:55.141Z",
+  "dataHash": "ts60-g1948-wp35.358",
   "winModel": {
     "intercept": 0,
-    "slope": 0.1404,
-    "homeBonus": 0.4186,
-    "n": 236,
+    "slope": 0.1096,
+    "homeBonus": 0.6107,
+    "n": 652,
     "fallback": false
   },
   "pyAdjusted": {
-    "exponent": 9.9,
+    "exponent": 6,
     "mode": "adjusted",
-    "n": 32,
-    "sse": 0.1643,
+    "n": 60,
+    "sse": 1.0865,
     "fallback": false
   },
   "pyRaw": {
-    "exponent": 7.8,
+    "exponent": 7.1,
     "mode": "raw",
-    "n": 32,
-    "sse": 0.3066,
+    "n": 60,
+    "sse": 0.2435,
     "fallback": false
   },
   "d1Hash": "d1-1447",

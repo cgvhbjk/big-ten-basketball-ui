@@ -1,5 +1,5 @@
 // Pure statistical utilities — no React imports
-import { olsSolve as _olsSolve, computeFit as _computeFit } from './epaModels/matrixOps.js'
+import { olsSolve as _olsSolve, ridgeSolve as _ridgeSolve, computeFit as _computeFit } from './epaModels/matrixOps.js'
 import { zscore, pickKBySilhouette } from './clustering.js'
 import { DRILL_CATALOG } from '../data/drillCatalog.js'
 
@@ -1368,7 +1368,17 @@ export function computeNBACollegeBenchmarks(posGroup, nbaCombine, opts = {}) {
 // powerRating.js). X must include an intercept column (1s) as col 0; y is
 // the response vector. Returns { beta, r2 }.
 function _mlr(X, y) {
-  const beta = _olsSolve(X, y)
+  let beta
+  try {
+    beta = _olsSolve(X, y)
+  } catch {
+    // Perfectly collinear predictors (e.g. position shares that sum to a
+    // constant, or a near-duplicate feature) make the normal-equations matrix
+    // singular and throw. Fall back to a tiny ridge penalty: it regularizes the
+    // inverse so the fit is still defined, without materially moving the
+    // coefficients for well-conditioned inputs.
+    beta = _ridgeSolve(X, y, 1e-6)
+  }
   const fit  = _computeFit(X, y, beta)
   return { beta, r2: fit.r2 }
 }

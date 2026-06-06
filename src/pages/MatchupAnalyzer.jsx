@@ -116,6 +116,34 @@ function DiffBadge({ value, unit = '', invert = false }) {
   )
 }
 
+// CompareRow — one head-to-head stat as a calm "A · label · B" row. The
+// winner keeps full weight with a ▸/◂ arrow pointing at it; the loser dims.
+// Far lighter than a grid of boxed StatCards for the core-numbers view.
+function CompareRow({ label, a, b, colorA, colorB, higherBetter, fmt }) {
+  const f = (v) => (v == null ? '—' : fmt ? fmt(v) : v.toFixed(1))
+  let aWins = null
+  if (higherBetter !== null && a != null && b != null && a !== b) aWins = higherBetter ? a > b : a < b
+  // Winner: team color + bold + a ▲ marker (non-color cue). Loser: still fully
+  // legible (muted grey), just not emphasised — no opacity dimming.
+  const cell = (str, color, isWin) => (
+    <span style={{
+      display: 'inline-flex', alignItems: 'baseline', gap: 5,
+      fontSize: 20, fontWeight: isWin ? 800 : 600,
+      color: isWin ? color : T.textMd, fontVariantNumeric: 'tabular-nums',
+    }}>
+      {isWin && <span aria-hidden="true" style={{ fontSize: 10, color }}>▲</span>}
+      {str}
+    </span>
+  )
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 116px 1fr', alignItems: 'center', padding: '13px 0', borderTop: `1px solid ${T.border}` }}>
+      <div style={{ textAlign: 'center' }}>{cell(f(a), colorA, aWins === true)}</div>
+      <div style={{ textAlign: 'center', fontSize: 11, color: T.textLow, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ textAlign: 'center' }}>{cell(f(b), colorB, aWins === false)}</div>
+    </div>
+  )
+}
+
 function NotablePlayerCard({ player, teamColor, onPlayerClick }) {
   if (!player) return null
   const heightIn = parseHeightIn(player.height)
@@ -206,7 +234,7 @@ function RadarTooltip({ active, payload, metaA, metaB, colorA, colorB }) {
   )
 }
 
-export default function MatchupAnalyzer() {
+export default function MatchupAnalyzer({ embedded = false }) {
   const {
     analyzerTeamA, analyzerTeamB, analyzerYearA, analyzerYearB,
     setAnalyzerTeamA, setAnalyzerTeamB, setAnalyzerYearA, setAnalyzerYearB,
@@ -445,15 +473,13 @@ export default function MatchupAnalyzer() {
   return (
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
-        title={`${metaA.abbr} vs ${metaB.abbr}`}
-        subtitle={`${metaA.fullName} ${analyzerYearA} · ${metaB.fullName} ${analyzerYearB} · Head-to-head breakdown`}
+        title={embedded ? null : `${metaA.abbr} vs ${metaB.abbr}`}
+        subtitle={embedded ? null : `${metaA.fullName} ${analyzerYearA} · ${metaB.fullName} ${analyzerYearB} · Head-to-head breakdown`}
         stats={winPctA !== null ? [
-          { label: `${metaA.abbr} win prob.`,          value: winPctStr,  color: colorA, note: winBand?.label },
-          { label: `${metaB.abbr} win prob.`,          value: winPctStrB, color: colorB },
-          { label: `${metaA.abbr} Net Eff`,            value: netA,    color: netA?.startsWith('+') ? T.green : T.red },
-          { label: `${metaB.abbr} Net Eff`,            value: netB,    color: netB?.startsWith('+') ? T.green : T.red },
-          { label: `${metaA.abbr} Record`,             value: seasonA?.record ?? '—' },
-          { label: `${metaB.abbr} Record`,             value: seasonB?.record ?? '—' },
+          { label: `${metaA.abbr} win prob.`, value: winPctStr,  color: colorA, note: winBand?.label },
+          { label: `${metaB.abbr} win prob.`, value: winPctStrB, color: colorB },
+          { label: `${metaA.abbr} Net Eff`,   value: netA, color: netA?.startsWith('+') ? T.green : T.red },
+          { label: `${metaB.abbr} Net Eff`,   value: netB, color: netB?.startsWith('+') ? T.green : T.red },
         ] : []}
         controls={
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -491,103 +517,81 @@ export default function MatchupAnalyzer() {
             )}
           </div>
         }
+        tabs={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'roster',   label: 'Rosters' },
+          { value: 'insights', label: 'Practice Insights' },
+        ]}
+        activeTab={activeSection}
+        onTabChange={setActiveSection}
+        tabsLabel="Matchup sections"
       />
 
-      <div style={{ padding: '0 28px 28px', maxWidth: 1280, margin: '0 auto' }}>
-
-      {/* Section nav */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {[['overview','Overview'], ['positions','Position Breakdown'], ['roster','Depth & Roster'], ['insights','Practice Insights']].map(([v, lbl]) => (
-          <button key={v} onClick={() => setActiveSection(v)}
-            style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500, cursor: 'pointer', border: 'none',
-              background: activeSection === v ? '#4f46e5' : '#2c2c2c',
-              color: activeSection === v ? '#fff' : '#9ca3af' }}>
-            {lbl}
-          </button>
-        ))}
-      </div>
+      <div className="bt-page" style={{ paddingBottom: 28, maxWidth: 1280, margin: '0 auto' }}>
 
       {/* ── Overview ── */}
       {activeSection === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Coach & Scheme */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {[
-              { school: analyzerTeamA, year: analyzerYearA, coach: coachA, color: colorA, offScheme: schemeOffA, defScheme: schemeDefA, meta: metaA },
-              { school: analyzerTeamB, year: analyzerYearB, coach: coachB, color: colorB, offScheme: schemeOffB, defScheme: schemeDefB, meta: metaB },
-            ].map(({ school, year, coach, color, offScheme, defScheme, meta }, i) => (
-              <div key={i} style={{ ...CARD }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, borderBottom: '1px solid #2c2c2c', paddingBottom: 12 }}>
-                  <TeamBadge school={school} size="md" showName={false} />
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color }}>{meta.fullName}</div>
-                    <div style={{ fontSize: 11, color: '#4b5563' }}>{year}</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>
-                  Head Coach
-                  {coach.approximate && (
-                    <span title="Coach metadata is hand-curated and may need verification" style={{ marginLeft: 6, fontSize: 9, color: '#f59e0b', fontWeight: 600, letterSpacing: '0.04em' }}>APPROX</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#ebebeb', marginBottom: 10 }}>{coach.name}</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 2 }}>Playstyle</div>
-                <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12, lineHeight: 1.5 }}>{coach.style}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <div style={{ background: '#1a1a1a', borderRadius: 6, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 3 }}>OFF SCHEME</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b' }}>{offScheme}</div>
-                  </div>
-                  <div style={{ background: '#1a1a1a', borderRadius: 6, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 3 }}>DEF SCHEME</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#6366f1' }}>{defScheme}</div>
-                  </div>
-                </div>
-                {/* Roster-predicted scheme */}
-                {(() => {
-                  const rs = school === analyzerTeamA ? rosterSchemeA : rosterSchemeB
-                  const at = school === analyzerTeamA ? archetypeA : archetypeB
-                  return (
-                    <div style={{ marginTop: 10, background: '#0e0e0e', borderRadius: 6, padding: '8px 10px', border: '1px solid #2c2c2c' }}>
-                      <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 4 }}>ROSTER-PREDICTED</div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, color: '#f59e0b' }}>⚡ {rs.offScheme}</span>
-                        <span style={{ fontSize: 11, color: '#6366f1' }}>🛡 {rs.defScheme}</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: '#374151', marginTop: 3 }}>
-                        Archetype: <span style={{ color }}>{ at.archetype}</span> · {at.signals[0]}
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            ))}
-          </div>
 
-          {/* Four Factors + Radar */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
-            <div>
-              <div style={SECTION_TITLE}>Four Factors Breakdown</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {FOUR_FACTORS.map(f => (
-                  <StatCard key={f.key} label={f.label}
-                    valueA={seasonA?.[f.key]} valueB={seasonB?.[f.key]}
+          {/* Verdict — the one answer, stated plainly and up top */}
+          {winPctA !== null && (() => {
+            const aFav     = winPctA >= 0.5
+            const favMeta  = aFav ? metaA : metaB
+            const favColor = aFav ? colorA : colorB
+            const favPct   = fmtWinPctDisplay(Math.max(winPctA, 1 - winPctA), crossYear)
+            const aPct     = Math.round(winPctA * 100)
+            return (
+              <div style={{ ...CARD, padding: '22px 26px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.textLow, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Projected edge</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: favColor, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                      {favMeta.fullName}
+                    </div>
+                    <div style={{ fontSize: 14, color: T.textMd, marginTop: 4 }}>
+                      {winBand?.label} · {crossYear ? '~' : ''}{favPct} win probability
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: T.textLow, textAlign: 'right' }}>
+                    {metaA.abbr} {seasonA?.record} &nbsp;·&nbsp; {metaB.abbr} {seasonB?.record}
+                  </div>
+                </div>
+                {/* win-probability split bar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: colorA, minWidth: 38 }}>{aPct}%</span>
+                  <div style={{ flex: 1, height: 12, borderRadius: 6, overflow: 'hidden', display: 'flex', background: T.surf2 }}>
+                    <div style={{ width: `${aPct}%`, background: colorA }} />
+                    <div style={{ width: `${100 - aPct}%`, background: colorB }} />
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: colorB, minWidth: 38, textAlign: 'right' }}>{100 - aPct}%</span>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Key numbers + radar — the four that matter, then a visual profile */}
+          <div className="bt-grid bt-grid--sidebar" style={{ gap: 20 }}>
+            <div style={CARD}>
+              <div style={SECTION_TITLE}>Key numbers</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 116px 1fr', padding: '0 0 6px' }}>
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorA }}>{metaA.abbr}</div>
+                <div />
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorB }}>{metaB.abbr}</div>
+              </div>
+              {[
+                { key: 'net_efficiency', label: 'Net Eff' },
+                { key: 'adjoe',          label: 'Offense' },
+                { key: 'adjde',          label: 'Defense' },
+                { key: 'tempo',          label: 'Tempo' },
+              ].map(({ key, label }) => {
+                const m = TEAM_METRIC_MAP[key]
+                return (
+                  <CompareRow key={key} label={label}
+                    a={seasonA?.[key]} b={seasonB?.[key]}
                     colorA={colorA} colorB={colorB}
-                    higherBetter={f.higherBetter} fmt={f.fmt} />
-                ))}
-              </div>
-              <div style={{ ...SECTION_TITLE, marginTop: 20 }}>Efficiency &amp; Pace</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                {['adjoe','adjde','tempo'].map(key => {
-                  const meta = TEAM_METRIC_MAP[key]
-                  return (
-                    <StatCard key={key} label={meta.label}
-                      valueA={seasonA?.[key]} valueB={seasonB?.[key]}
-                      colorA={colorA} colorB={colorB}
-                      higherBetter={meta.higherBetter} fmt={meta.fmt} />
-                  )
-                })}
-              </div>
+                    higherBetter={m.higherBetter} fmt={m.fmt} />
+                )
+              })}
             </div>
 
             <div style={CARD}>
@@ -600,8 +604,8 @@ export default function MatchupAnalyzer() {
                 <RadarChart data={radarData} margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
                   <PolarGrid stroke="#2c2c2c" />
                   <PolarAngleAxis dataKey="axis" tick={{ fill: '#6b7280', fontSize: 11 }} />
-                  <Radar name={metaA.abbr} dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} />
-                  <Radar name={metaB.abbr} dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} />
+                  <Radar name={metaA.abbr} dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} isAnimationActive={false} />
+                  <Radar name={metaB.abbr} dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} isAnimationActive={false} />
                   <Tooltip content={<RadarTooltip metaA={metaA} metaB={metaB} colorA={colorA} colorB={colorB} />} />
                 </RadarChart>
               </ResponsiveContainer>
@@ -610,6 +614,56 @@ export default function MatchupAnalyzer() {
               </div>
             </div>
           </div>
+
+          {/* Everything dense is one click away — keeps the default view calm */}
+          <Accordion title="Four factors & shooting detail">
+            <div className="bt-grid bt-grid--2" style={{ gap: 10 }}>
+              {FOUR_FACTORS.map(f => (
+                <StatCard key={f.key} label={f.label}
+                  valueA={seasonA?.[f.key]} valueB={seasonB?.[f.key]}
+                  colorA={colorA} colorB={colorB}
+                  higherBetter={f.higherBetter} fmt={f.fmt} />
+              ))}
+            </div>
+          </Accordion>
+
+          <Accordion title="Coaching & scheme">
+            <div className="bt-grid bt-grid--2" style={{ gap: 16 }}>
+              {[
+                { school: analyzerTeamA, year: analyzerYearA, coach: coachA, color: colorA, offScheme: schemeOffA, defScheme: schemeDefA, meta: metaA },
+                { school: analyzerTeamB, year: analyzerYearB, coach: coachB, color: colorB, offScheme: schemeOffB, defScheme: schemeDefB, meta: metaB },
+              ].map(({ school, year, coach, color, offScheme, defScheme, meta }, i) => (
+                <div key={i} style={{ background: T.surf2, borderRadius: 10, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, borderBottom: `1px solid ${T.border}`, paddingBottom: 12 }}>
+                    <TeamBadge school={school} size="md" showName={false} />
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color }}>{meta.fullName}</div>
+                      <div style={{ fontSize: 11, color: T.textMin }}>{year}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                    <div style={{ background: T.bgDeep, borderRadius: 6, padding: '8px 10px' }}>
+                      <div style={{ fontSize: 10, color: T.textLow, marginBottom: 3 }}>OFF SCHEME</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.amber }}>{offScheme}</div>
+                    </div>
+                    <div style={{ background: T.bgDeep, borderRadius: 6, padding: '8px 10px' }}>
+                      <div style={{ fontSize: 10, color: T.textLow, marginBottom: 3 }}>DEF SCHEME</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: T.accent }}>{defScheme}</div>
+                    </div>
+                  </div>
+                  {(() => {
+                    const rs = school === analyzerTeamA ? rosterSchemeA : rosterSchemeB
+                    const at = school === analyzerTeamA ? archetypeA : archetypeB
+                    return (
+                      <div style={{ fontSize: 11, color: T.textLow }}>
+                        Roster-predicted: <span style={{ color: T.amber }}>{rs.offScheme}</span> / <span style={{ color: T.accentSoft }}>{rs.defScheme}</span> · archetype <span style={{ color }}>{at.archetype}</span>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ))}
+            </div>
+          </Accordion>
         </div>
       )}
 
@@ -684,8 +738,9 @@ export default function MatchupAnalyzer() {
         </div>
       )}
 
-      {/* ── Position Breakdown ── */}
-      {activeSection === 'positions' && (
+      {/* ── Positional comparison — folded into the Rosters tab as a collapsed expander ── */}
+      {activeSection === 'roster' && (
+        <Accordion title="Positional comparison — height, experience &amp; efficiency">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ fontSize: 12, color: '#6b7280' }}>
@@ -717,7 +772,7 @@ export default function MatchupAnalyzer() {
           </div>
 
           {/* Side-by-side position cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div className="bt-grid bt-grid--2" style={{ gap: 20 }}>
             {[
               { agg: posAggA, school: analyzerTeamA, year: analyzerYearA, color: colorA, meta: metaA },
               { agg: posAggB, school: analyzerTeamB, year: analyzerYearB, color: colorB, meta: metaB },
@@ -809,11 +864,12 @@ export default function MatchupAnalyzer() {
             </div>
           </div>
         </div>
+        </Accordion>
       )}
 
-      {/* ── Depth & Roster ── */}
+      {/* ── Rosters: depth charts + (collapsed) positional comparison ── */}
       {activeSection === 'roster' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="bt-grid bt-grid--2" style={{ gap: 20 }}>
           {[
             { school: analyzerTeamA, year: analyzerYearA, squad: squadA, color: colorA, meta: metaA, notable: notableA },
             { school: analyzerTeamB, year: analyzerYearB, squad: squadB, color: colorB, meta: metaB, notable: notableB },
@@ -909,7 +965,7 @@ export default function MatchupAnalyzer() {
           {/* Scheme comparison summary */}
           <div style={{ ...CARD, marginTop: 8 }}>
             <div style={SECTION_TITLE}>Scheme Summary</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <div className="bt-grid bt-grid--2" style={{ gap: 20 }}>
               {[
                 { team: analyzerTeamA, meta: metaA, color: colorA, coach: coachA, offScheme: schemeOffA, defScheme: schemeDefA },
                 { team: analyzerTeamB, meta: metaB, color: colorB, coach: coachB, offScheme: schemeOffB, defScheme: schemeDefB },

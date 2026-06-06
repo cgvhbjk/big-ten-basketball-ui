@@ -36,6 +36,31 @@ export const T = {
   purple:   '#a78bfa',
   purpleBg: '#a78bfa20',
   cyan:     '#22d3ee',
+
+  // ── Semantic comparison colors ─────────────────────────────────────────
+  // Used for "this side wins / loses / neutral" in head-to-head displays so
+  // edge meaning is consistent app-wide and never carried by team color alone.
+  edge:     '#10b981',   // the winning side of a compared stat
+  edgeBg:   '#10b98118',
+  fade:     '#737373',   // the losing / non-winning side (de-emphasised)
+}
+
+// ── Spacing scale (px) ──────────────────────────────────────────────────────
+// One ladder of spacing values so padding/margins/gaps stay on a consistent
+// rhythm instead of ad-hoc 6/7/8/14/16/18/20/22/24 mixes.
+export const SPACE = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, xxxl: 40 }
+
+// ── Type scale ──────────────────────────────────────────────────────────────
+// Named roles map to a small set of sizes/weights. Use these for headings and
+// labels so the same role looks identical on every page.
+export const TYPE = {
+  pageTitle:    { fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' },
+  sectionTitle: { fontSize: 13, fontWeight: 600, color: '#a5b4fc', letterSpacing: '0.01em' },
+  kpiValue:     { fontSize: 20, fontWeight: 700, lineHeight: 1.1 },
+  cardTitle:    { fontSize: 15, fontWeight: 700 },
+  label:        { fontSize: 11, fontWeight: 600, color: '#8a8a8a', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  body:         { fontSize: 13, color: '#c8c8c8', lineHeight: 1.6 },
+  mono:         { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontVariantNumeric: 'tabular-nums' },
 }
 
 // ── Reusable style objects ──────────────────────────────────────────────────
@@ -89,3 +114,21 @@ export const STAT_CHIP = {
   padding:      '8px 12px',
   textAlign:    'center',
 }
+
+// Accessible tab button. Pair with role="tab" + aria-selected on the element.
+// `active` drives the selected styling; the underline doubles as a non-color
+// cue so selection isn't communicated by color alone.
+export const TAB = (active) => ({
+  appearance:   'none',
+  padding:      '7px 14px',
+  borderRadius: 7,
+  fontSize:     13,
+  fontWeight:   active ? 600 : 500,
+  cursor:       'pointer',
+  border:       'none',
+  background:   active ? `${T.accent}1f` : 'transparent',
+  color:        active ? T.accentSoft : T.textMd,
+  boxShadow:    active ? `inset 0 -2px 0 ${T.accentLt}` : 'none',
+  transition:   'background .15s, color .15s',
+  whiteSpace:   'nowrap',
+})

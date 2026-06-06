@@ -89,9 +89,10 @@ export const TEAM_METRICS = [
   { key: 'ft_pct',        label: 'Free Throw %',         group: 'Shooting', higherBetter: true,  fmt: v => v.toFixed(1) + '%' },
 
   // ── Rebounding ─────────────────────────────────────────────────────────────
-  { key: 'reb_margin',    label: 'Rebound Margin',       group: 'Rebounding', higherBetter: true,  fmt: v => (v > 0 ? '+' : '') + v.toFixed(1) },
+  // Opponent team rebounds aren't carried by the Barttorvik feeds (games.json
+  // has scores only, players.json covers our own roster), so opp_trb_pg and the
+  // derived reb_margin are intentionally omitted rather than shown as empty.
   { key: 'trb_pg',        label: 'Rebounds/G',           group: 'Rebounding', higherBetter: true,  fmt: v => v.toFixed(1) },
-  { key: 'opp_trb_pg',    label: 'Opp Rebounds/G',       group: 'Rebounding', higherBetter: false, fmt: v => v.toFixed(1) },
 
   // ── Playmaking ─────────────────────────────────────────────────────────────
   { key: 'ast_pg',        label: 'Assists/G',            group: 'Playmaking', higherBetter: true,  fmt: v => v.toFixed(1) },

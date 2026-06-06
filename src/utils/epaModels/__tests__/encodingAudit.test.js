@@ -54,9 +54,23 @@ describe('Field encoding audit (Phase 0)', () => {
     expect(diffs).toEqual([])
   })
 
-  it('warns on coefficients with |β| < 0.3 (low signal-to-noise at n≈32)', () => {
-    // def_TOV is empirically near zero — the audit's job is to surface that.
-    const lowConfidenceWarnings = audit.warnings.filter(w => w.includes('def_TOV'))
-    expect(lowConfidenceWarnings.length).toBe(1)
+  it('flags low-signal coefficients (|β| < 0.3) and only those', () => {
+    // The audit warns on near-zero coefficients whose sign isn't strongly
+    // identified. *Which* coefficients those are depends on the loaded data —
+    // at the Ivy baseline (n≈32) def_TOV was flagged; the richer Big Ten data
+    // (n=60) estimates it cleanly — so assert the invariant rather than a
+    // dataset-specific field: a warning exists for a coefficient iff |β| < 0.3.
+    const OFF = ['off_eFG', 'off_TOV', 'off_ORB', 'off_FTR']
+    const DEF = ['def_eFG', 'def_TOV', 'def_ORB', 'def_FTR']
+    const expected = new Set()
+    OFF.forEach((k, i) => { if (Math.abs(audit.off.beta[i + 1]) < 0.3) expected.add(`off/${k}`) })
+    DEF.forEach((k, i) => { if (Math.abs(audit.def.beta[i + 1]) < 0.3) expected.add(`def/${k}`) })
+
+    // every warning maps to a genuinely low-|β| coefficient …
+    for (const w of audit.warnings) {
+      expect(expected.has(w.split(':')[0])).toBe(true)
+    }
+    // … and every low-|β| coefficient produced exactly one warning.
+    expect(audit.warnings.length).toBe(expected.size)
   })
 })

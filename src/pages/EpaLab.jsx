@@ -13,7 +13,7 @@ import PageHeader from '../components/shared/PageHeader.jsx'
 import DiagnosticsPanel from '../components/epa/DiagnosticsPanel.jsx'
 import PageConclusions from '../components/shared/PageConclusions.jsx'
 import MethodologyPanel from '../components/shared/MethodologyPanel.jsx'
-import { T, CARD, BTN } from '../styles/theme.js'
+import { T, CARD } from '../styles/theme.js'
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
@@ -408,7 +408,7 @@ function TierCard({ badge, description, tier, result, activeComparison, observat
 
 const TABS = ['events', 'coefficients', 'scatter', 'state']
 
-export default function EpaLab() {
+export default function EpaLab({ embedded = false }) {
   const { confOnly, activeComparison, setConfOnly, setActiveComparison,
           tier1Result, tier2Result, setTier1Result, setTier2Result } = useEpaStore()
 
@@ -450,7 +450,7 @@ export default function EpaLab() {
   return (
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
-        title="EPA Lab"
+        title={embedded ? null : 'EPA Lab'}
         subtitle="Derives event EPA from regression on Dean Oliver four factors (eFG%, TOV%, ORB%, FTR). Two data tiers: season aggregates and per-game box scores."
         stats={pipeline.status !== 'error' ? [
           { label: 'Model',     value: sel?.replace(/_/g, ' ') ?? '—', color: T.accentSoft },
@@ -459,23 +459,18 @@ export default function EpaLab() {
           { label: 'FGA/100',   value: pipeline.leagueRates?.avgFGAp100 ?? '—', color: T.textMd },
         ] : []}
         controls={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.textMd, cursor: 'pointer' }}>
-              <input type="checkbox" checked={confOnly} onChange={e => setConfOnly(e.target.checked)} style={{ accentColor: T.accent }} />
-              Conference only (Tier 2)
-            </label>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {TABS.map(tab => (
-                <button key={tab} style={BTN(activeComparison === tab)} onClick={() => setActiveComparison(tab)}>
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.textMd, cursor: 'pointer' }}>
+            <input type="checkbox" checked={confOnly} onChange={e => setConfOnly(e.target.checked)} style={{ accentColor: T.accent }} />
+            Conference only (Tier 2)
+          </label>
         }
+        tabs={TABS.map(tab => ({ value: tab, label: tab.charAt(0).toUpperCase() + tab.slice(1) }))}
+        activeTab={activeComparison}
+        onTabChange={setActiveComparison}
+        tabsLabel="EPA comparison views"
       />
 
-      <div style={{ padding: '0 28px 40px' }}>
+      <div className="bt-page" style={{ paddingBottom: 40 }}>
         {pipeline.status === 'error'
           ? <div style={{ background: T.redBg, color: T.red, borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
               {pipeline.messages?.join(' · ')}

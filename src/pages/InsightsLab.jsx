@@ -142,7 +142,7 @@ function CorrelationPanel() {
 
   return (
     <>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 28 }}>
+    <div className="bt-grid bt-grid--sidebar" style={{ gap: 28 }}>
       <div>
         {/* Metric selector + Save button */}
         <div style={{ ...CARD, marginBottom: 20 }}>
@@ -421,7 +421,7 @@ function SchemeHalf({ title, schemeType, metrics, defaultMetric, colors, descrip
       <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>
         {schemeType === 'off' ? 'Classified by tempo × 3-point rate' : 'Classified by turnover forcing, rim protection, eFG% limiting'}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+      <div className="bt-grid bt-grid--2" style={{ gap: 8, marginBottom: 16 }}>
         {data.map((s, i) => (
           <div key={s.scheme} style={{ background: '#111111', border: `1px solid ${colors[i]}33`, borderRadius: 8, padding: '10px 12px' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: colors[i], marginBottom: 2 }}>{s.scheme}</div>
@@ -845,7 +845,7 @@ function SchemePanel() {
       </div>
 
       {/* ── Section 2: League Scheme Overview ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+      <div className="bt-grid bt-grid--2" style={{ gap: 32 }}>
         <SchemeHalf title="Offensive Schemes" schemeType="off" metrics={OFF_METRICS} defaultMetric="win_pct" colors={OFF_COLORS} descriptions={OFF_DESCRIPTIONS} />
         <SchemeHalf title="Defensive Schemes" schemeType="def" metrics={DEF_METRICS} defaultMetric="adjde"   colors={DEF_COLORS} descriptions={DEF_DESCRIPTIONS} />
       </div>
@@ -1391,25 +1391,22 @@ const TABS = [
   ['biodata',     'Roster & Bio'],
 ]
 
-export default function InsightsLab() {
+export default function InsightsLab({ embedded = false }) {
   const [tab, setTab] = useState('correlation')
 
   return (
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
-        title="Insights Lab"
+        title={embedded ? null : 'Insights Lab'}
         subtitle={`${teamSeasons.length} team-seasons · ${players.length} player-seasons · ${games.filter(g => g.conf_game).length} conference games · ${ALL_METRICS_FLAT.length} metrics · 2022–2025`}
         stats={[]}
-        controls={
-          <div style={{ display: 'flex', gap: 4 }}>
-            {TABS.map(([v, lbl]) => (
-              <button key={v} style={BTN(tab === v)} onClick={() => setTab(v)}>{lbl}</button>
-            ))}
-          </div>
-        }
+        tabs={TABS.map(([v, lbl]) => ({ value: v, label: lbl }))}
+        activeTab={tab}
+        onTabChange={setTab}
+        tabsLabel="Insights Lab views"
       />
 
-      <div style={{ padding: '0 28px 28px', maxWidth: 1280, margin: '0 auto' }}>
+      <div className="bt-page" style={{ paddingBottom: 28, maxWidth: 1280, margin: '0 auto' }}>
 
       {tab === 'correlation' && <CorrelationPanel />}
       {tab === 'scan'        && <ScanPanel />}
