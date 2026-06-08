@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -7,7 +7,6 @@ import teamSeasons  from '../data/teamSeasons.json'
 import gameLogs     from '../data/gameLogs.json'
 import baselineEP   from '../data/baseline_epa.json'
 import { runEPAPipeline } from '../utils/epaModels/pipeline.js'
-import { runTier2Pipeline } from '../utils/epaModels/tier2.js'
 import useEpaStore from '../store/useEpaStore.js'
 import PageHeader from '../components/shared/PageHeader.jsx'
 import DiagnosticsPanel from '../components/epa/DiagnosticsPanel.jsx'
@@ -27,7 +26,7 @@ function EpaPill({ value }) {
       borderRadius: 4, padding: '2px 8px', fontSize: 12, fontWeight: 700,
       display: 'inline-block', minWidth: 58, textAlign: 'center',
     }}>
-      {zero ? '0 (constrained)' : `${pos ? '+' : ''}${value.toFixed(3)}`}
+      {zero ? '0.000' : `${pos ? '+' : ''}${value.toFixed(3)}`}
     </span>
   )
 }
@@ -42,33 +41,29 @@ const EVENT_ROWS_FULL = [
   { key: 'defShotSuppression', label: 'Shot Suppression (def)' },
 ]
 
-// "Essentially zero" threshold for hiding constrained-to-zero rows. NNLS clips
-// wrong-signed coefficients to exactly 0; small numeric noise can leave a
-// trailing 0.0001 on something that was intended to be zero, so the cutoff
-// is slightly above floating-point dust.
+// "Essentially zero" threshold for hiding numerically ~0 events. The per-game
+// ridge model doesn't clip coefficients, so in practice nothing is hidden —
+// this just guards against floating-point dust.
 const EPA_ZERO_EPS = 1e-3
 
-// Sign-direction column reliability after the Phase-0 encoding audit.
-// `uncertain` here flags MAGNITUDE noise at n=32, not sign ambiguity — the
-// audit pinned every sign empirically (see EPA_MODELS.md). def_TOV is the
-// only column with a near-zero partial coefficient and is still flagged.
+// Plain-English note per coefficient. On the per-game sample all eight factors
+// come back stable and textbook-signed, so none are flagged uncertain.
 const COEFF_META = [
-  { key: 'off_eFG', label: 'Off eFG%',  note: 'shooting quality',                                    uncertain: false },
-  { key: 'off_TOV', label: 'Off TOV',   note: 'tov_o — magnitude unstable at n=32; sign empirically + (verified)',  uncertain: true  },
-  { key: 'off_ORB', label: 'Off ORB',   note: 'orb — magnitude unstable at n=32; sign empirically − (verified)',    uncertain: true  },
-  { key: 'off_FTR', label: 'Off FTR',   note: 'free throw rate',                                     uncertain: false },
-  { key: 'def_eFG', label: 'Def eFG%',  note: 'opponent shooting quality',                           uncertain: false },
-  { key: 'def_TOV', label: 'Def TOV',   note: 'tov_d — partial β ≈ 0 at n=32; weakest of the four',  uncertain: true  },
-  { key: 'def_ORB', label: 'Def ORB',   note: 'drb — own DRB%; sign verified, magnitude noisy',      uncertain: true  },
-  { key: 'def_FTR', label: 'Def FTR',   note: 'opponent free throw rate',                            uncertain: false },
+  { key: 'off_eFG', label: 'Off eFG%',  note: 'shooting quality',                          uncertain: false },
+  { key: 'off_TOV', label: 'Off TOV',   note: 'turnover rate (lower is better)',           uncertain: false },
+  { key: 'off_ORB', label: 'Off ORB',   note: 'offensive rebound rate',                    uncertain: false },
+  { key: 'off_FTR', label: 'Off FTR',   note: 'free throw rate',                           uncertain: false },
+  { key: 'def_eFG', label: 'Def eFG%',  note: 'opponent shooting quality',                 uncertain: false },
+  { key: 'def_TOV', label: 'Def TOV',   note: 'opponent turnover rate (forced)',           uncertain: false },
+  { key: 'def_ORB', label: 'Def ORB',   note: 'opponent offensive rebound rate (lower is better)', uncertain: false },
+  { key: 'def_FTR', label: 'Def FTR',   note: 'opponent free throw rate',                  uncertain: false },
 ]
 
 function EventEPATable({ epa }) {
   if (!epa) return <div style={{ color: T.textMin, fontSize: 12 }}>No EPA values</div>
-  // Filter out events whose EPA value is essentially zero — those represent
-  // factors NNLS clipped because the unconstrained sign was wrong at n=32, so
-  // their event-level value carries no signal. Showing them as "0
-  // (constrained)" rows added clutter without information.
+  // Filter out events whose EPA value is essentially zero (numeric dust). With
+  // the per-game ridge fit every factor is non-zero, so nothing is hidden in
+  // practice — this just avoids ever showing a meaningless 0.000 row.
   const visible = EVENT_ROWS_FULL.filter(({ key }) => Math.abs(epa[key] ?? 0) >= EPA_ZERO_EPS)
   const hiddenCount = EVENT_ROWS_FULL.length - visible.length
   return (
@@ -92,8 +87,8 @@ function EventEPATable({ epa }) {
       </tbody>
     </table>
     <div style={{ fontSize: 10, color: T.textMin, marginTop: 8 }}>
-      EPA from sign-constrained model (NNLS).
-      {hiddenCount > 0 && ` ${hiddenCount} event${hiddenCount > 1 ? 's' : ''} hidden — coefficient clipped to zero by the constraint at n=32.`}
+      EPA from the per-game four-factor ridge model.
+      {hiddenCount > 0 && ` ${hiddenCount} near-zero event${hiddenCount > 1 ? 's' : ''} hidden.`}
     </div>
     </div>
   )
@@ -105,9 +100,8 @@ function CoeffTable({ coefficients }) {
     <div>
       <p style={{ fontSize: 11, color: T.textLow, marginBottom: 10 }}>
         β_eFG of 1.2 means a 1% increase in eFG% adds 1.2 pts of net efficiency per 100 possessions.
-        Signs for all eight factors are empirically verified (see <code>encodingAudit.js</code> + EPA_MODELS.md).
-        Rows shaded amber have <strong style={{ color: T.amber }}>unstable magnitudes at n=32</strong> due to multicollinearity with eFG% — not unreliable signs.
-        The Tier 2 panel now runs on real per-game box scores (ESPN, 2022–2026), which tightens these estimates.
+        Fit on real Big Ten per-game box scores (ESPN, 2022–2026), all eight four-factor signs come back
+        stable and textbook-correct (turnovers negative, rebounds positive) with all VIFs near 1 — see EPA_MODELS.md.
       </p>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
@@ -130,7 +124,7 @@ function CoeffTable({ coefficients }) {
                 background: rowBg,
               }}>
                 <td style={{ padding: '6px 0', color: uncertain ? T.amber : T.textMd, fontWeight: uncertain ? 600 : 400 }}>
-                  {uncertain && <span title="Sign unreliable on n=32 — see note" style={{ fontSize: 10, marginRight: 5, padding: '1px 5px', background: T.amber, color: '#1a1a1a', borderRadius: 3, fontWeight: 700 }}>?</span>}
+                  {uncertain && <span title="Coefficient flagged unreliable — see note" style={{ fontSize: 10, marginRight: 5, padding: '1px 5px', background: T.amber, color: '#1a1a1a', borderRadius: 3, fontWeight: 700 }}>?</span>}
                   {label}
                 </td>
                 <td style={{
@@ -319,87 +313,34 @@ function StateEPAPanel({ states, deltaNote }) {
   )
 }
 
-// LocalStorage gate so developers can opt into seeing synthetic numbers
-// without exposing them to ordinary users. Default: hidden.
-function useSyntheticOverride() {
-  const [show, setShow] = useState(() => {
-    try { return localStorage.getItem('epaLab.showSynthetic') === '1' }
-    catch { return false }
-  })
-  const toggle = () => setShow(s => {
-    const next = !s
-    try { localStorage.setItem('epaLab.showSynthetic', next ? '1' : '0') } catch {}
-    return next
-  })
-  return [show, toggle]
-}
-
-function TierCard({ badge, description, tier, result, activeComparison, observations, synthetic, epaOverride, statesOverride }) {
-  const [showSynthetic, toggleSynthetic] = useSyntheticOverride()
-
-  if (!result) return (
-    <div style={{ ...CARD, marginBottom: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ background: T.accent + '22', color: T.accentSoft, borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{badge}</span>
-        <span style={{ fontSize: 12, color: T.textMin }}>No game log data loaded.</span>
-      </div>
-      <div style={{ fontSize: 11, color: T.textMin }}>
-        Fetch real ESPN box scores: <code style={{ color: T.accentSoft }}>node scripts/fetch-gamelogs.mjs</code>
-      </div>
-    </div>
-  )
-  if (result.error || result.status === 'error') return (
+function ModelCard({ badge, description, result, activeComparison, epaOverride, statesOverride }) {
+  if (!result || result.error || result.status === 'error') return (
     <div style={{ ...CARD, marginBottom: 20, borderColor: T.red }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: T.red }}>{badge}</span>
-      <div style={{ fontSize: 12, color: T.red, marginTop: 6 }}>{result.error ?? result.messages?.[0]}</div>
+      <div style={{ fontSize: 12, color: T.red, marginTop: 6 }}>
+        {result?.error ?? result?.messages?.[0] ?? 'No game-log data loaded — run node scripts/fetch-gamelogs.mjs'}
+      </div>
     </div>
   )
-  const r = result.result ?? result
-
-  // Suppress numerical content for synthetic tiers unless the developer
-  // toggle is active. Keeps the panel structure visible (so users see what
-  // would appear with real data) without leaking misleading numbers.
-  const hideNumbers = synthetic && !showSynthetic
+  const r = result
 
   return (
     <div style={{ ...CARD, marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
         <span style={{ background: T.accent + '22', color: T.accentSoft, borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{badge}</span>
-        <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{r.label ?? tier}</span>
-        {!hideNumbers && r.r2 != null && <span style={{ fontSize: 11, color: T.textLow }}>R²={r.r2}</span>}
-        {!hideNumbers && r.cvR2 != null && <span style={{ fontSize: 11, color: T.blue }}>CVR²={r.cvR2}</span>}
-        {!hideNumbers && r.rmse != null && <span style={{ fontSize: 11, color: T.textLow }}>RMSE={r.rmse}</span>}
-        {!hideNumbers && r.alpha != null && <span style={{ fontSize: 11, color: T.blue }}>λ={r.alpha}</span>}
-        {synthetic && (
-          <span style={{ background: T.amberBg, color: T.amber, borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 600 }}>SYNTHETIC</span>
-        )}
+        <span style={{ fontSize: 12, color: T.text, fontWeight: 600 }}>{r.label}</span>
+        {r.r2 != null && <span style={{ fontSize: 11, color: T.textLow }}>R²={r.r2}</span>}
+        {r.cvR2 != null && <span style={{ fontSize: 11, color: T.blue }}>CVR²={r.cvR2}</span>}
+        {r.rmse != null && <span style={{ fontSize: 11, color: T.textLow }}>RMSE={r.rmse}</span>}
+        {r.alpha != null && <span style={{ fontSize: 11, color: T.blue }}>λ={r.alpha}</span>}
       </div>
       {description && (
         <div style={{ fontSize: 11, color: T.textLow, marginBottom: 12 }}>{description}</div>
       )}
-      {synthetic && (
-        <div style={{ fontSize: 11, color: T.amber, marginBottom: 12, lineHeight: 1.5 }}>
-          Synthetic game data — coefficients, EPA, and scatter would not reflect real Big Ten play.
-          {' '}Numbers are hidden by default. Replace gameLogs.json with real ESPN box scores
-          (<code>node scripts/fetch-gamelogs.mjs</code>) to populate this card.
-          <button onClick={toggleSynthetic}
-            style={{ marginLeft: 10, fontSize: 10, color: T.textLow, background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}>
-            {showSynthetic ? 'Hide synthetic numbers' : 'Show synthetic numbers (developer)'}
-          </button>
-        </div>
-      )}
-      {hideNumbers ? (
-        <div style={{ fontSize: 12, color: T.textMin, padding: '24px 0', textAlign: 'center', border: `1px dashed ${T.border}`, borderRadius: 8 }}>
-          Numbers hidden — Tier 2 panel awaiting real data.
-        </div>
-      ) : (
-        <>
-          {activeComparison === 'events'       && <EventEPATable  epa={epaOverride ?? r.eventEPA} />}
-          {activeComparison === 'coefficients' && <CoeffTable     coefficients={r.coefficients} />}
-          {activeComparison === 'scatter'      && <ScatterViz     observations={r.observations ?? observations} r2={r.r2} n={r.n} label={r.label} />}
-          {activeComparison === 'state'        && <StateEPAPanel  states={statesOverride ?? r.states} deltaNote={(statesOverride ?? r.states)?._deltaNote} />}
-        </>
-      )}
+      {activeComparison === 'events'       && <EventEPATable  epa={epaOverride ?? r.eventEPA} />}
+      {activeComparison === 'coefficients' && <CoeffTable     coefficients={r.coefficients} />}
+      {activeComparison === 'scatter'      && <ScatterViz     observations={r.observations} r2={r.r2} n={r.n} label={r.label} />}
+      {activeComparison === 'state'        && <StateEPAPanel  states={statesOverride ?? r.states} deltaNote={(statesOverride ?? r.states)?._deltaNote} />}
     </div>
   )
 }
@@ -409,61 +350,29 @@ function TierCard({ badge, description, tier, result, activeComparison, observat
 const TABS = ['events', 'coefficients', 'scatter', 'state']
 
 export default function EpaLab({ embedded = false }) {
-  const { confOnly, activeComparison, setConfOnly, setActiveComparison,
-          tier1Result, tier2Result, setTier1Result, setTier2Result } = useEpaStore()
+  const { activeComparison, setActiveComparison, epaResult, setEpaResult } = useEpaStore()
 
-  // User-chosen model to view (null = auto-selected by pipeline)
-  const [viewModelKey, setViewModelKey] = useState(null)
-
-  // Compute Tier 1 once and cache in store — survives navigation
+  // Fit the single per-game EPA model once and cache in store — survives navigation.
   const pipeline = useMemo(() => {
-    if (tier1Result.raw) return tier1Result.raw
+    if (epaResult) return epaResult
     try {
-      const result = runEPAPipeline(teamSeasons, { targetMode: 'raw', baselineEP })
-      setTier1Result(result, 'raw')
+      const result = runEPAPipeline(gameLogs, teamSeasons, { baselineEP })
+      setEpaResult(result)
       return result
-    } catch (e) { return { status: 'error', messages: [e.message], models: null } }
-  }, [tier1Result.raw])
-
-  // Compute Tier 2 when confOnly changes; cache result keyed by confOnly flag
-  const tier2CacheKey = `confOnly=${confOnly}`
-  const tier2 = useMemo(() => {
-    if (tier2Result?.cacheKey === tier2CacheKey) return tier2Result.data
-    if (!gameLogs?.length) return null
-    try {
-      const data = runTier2Pipeline(gameLogs, pipeline.leagueRates ?? {}, { confOnly, baselineEP })
-      setTier2Result({ cacheKey: tier2CacheKey, data })
-      return data
     } catch (e) { return { status: 'error', messages: [e.message] } }
-  }, [confOnly, pipeline.leagueRates, tier2Result])
-
-  const sel              = pipeline.selectedModel
-  const effectiveKey     = viewModelKey ?? sel
-  const effectiveModel   = pipeline.models?.[effectiveKey]
-
-  // Tier 2 description
-  const t2Result   = tier2?.result ?? tier2
-  const t2n        = t2Result?.n
-  const t2ConfLabel = confOnly ? ' · conference games only' : ' · all opponents'
-  const tier2Desc  = `Per-game box scores${t2ConfLabel} · n=${t2n ?? '—'} · ESPN · 2022–25. Ridge regression on Dean Oliver four factors.`
+  }, [epaResult])
 
   return (
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
         title={embedded ? null : 'EPA Lab'}
-        subtitle="Event EPA from a four-factor regression (eFG%, TOV%, ORB%, FTR) — season + per-game tiers."
+        subtitle="Event EPA from a four-factor regression (eFG%, TOV%, ORB%, FTR) fit on Big Ten per-game box scores."
         stats={pipeline.status !== 'error' ? [
-          { label: 'Model',     value: sel?.replace(/_/g, ' ') ?? '—', color: T.accentSoft },
-          { label: 'Off CVR²',  value: pipeline.models?.ridge_split?.offCvR2 ?? '—', color: T.green },
-          { label: 'Def CVR²',  value: pipeline.models?.ridge_split?.defCvR2 ?? '—', color: T.green },
+          { label: 'Games (n)', value: pipeline.n ?? '—', color: T.accentSoft },
+          { label: 'R²',        value: pipeline.r2 ?? '—', color: T.green },
+          { label: 'CV R²',     value: pipeline.cvR2 ?? '—', color: T.green },
           { label: 'FGA/100',   value: pipeline.leagueRates?.avgFGAp100 ?? '—', color: T.textMd },
         ] : []}
-        controls={
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.textMd, cursor: 'pointer' }}>
-            <input type="checkbox" checked={confOnly} onChange={e => setConfOnly(e.target.checked)} style={{ accentColor: T.accent }} />
-            Conference only (Tier 2)
-          </label>
-        }
         tabs={TABS.map(tab => ({ value: tab, label: tab.charAt(0).toUpperCase() + tab.slice(1) }))}
         activeTab={activeComparison}
         onTabChange={setActiveComparison}
@@ -475,33 +384,20 @@ export default function EpaLab({ embedded = false }) {
           ? <div style={{ background: T.redBg, color: T.red, borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
               {pipeline.messages?.join(' · ')}
             </div>
-          : <TierCard
-              badge="TIER 1"
-              description={`Season aggregates · n=${pipeline.n ?? '—'} · Barttorvik · 2022–25. Coefficients and scatter show the ${effectiveKey?.replace(/_/g, ' ') ?? '—'} model. Event EPA always from sign-constrained model.`}
-              tier="Team-season"
-              result={effectiveModel}
+          : <ModelCard
+              badge="EPA MODEL"
+              description={`Joint ridge regression on the eight Dean Oliver four factors, fit on real Big Ten per-game box scores (ESPN, 2022–2026). The scatter aggregates the per-game fit to team-seasons; event EPA scales the coefficients to per-event units.`}
+              result={pipeline}
               activeComparison={activeComparison}
-              observations={pipeline.observations}
-              synthetic={false}
               epaOverride={pipeline.selectedEventEPA}
               statesOverride={pipeline.selectedStates}
             />
         }
 
-        <TierCard
-          badge="TIER 2"
-          description={tier2Desc}
-          tier="Game logs"
-          result={tier2}
-          activeComparison={activeComparison}
-          synthetic={tier2?.synthetic}
-        />
-
         <PageConclusions prominent conclusions={[
-          { label: 'What EPA measures', color: T.accentSoft, text: 'EPA (Expected Points Added) converts regression coefficients from the Dean Oliver four-factor model into intuitive per-event values. A made 2-pt FG adds ~2.36 pts of net efficiency per 100 possessions. These are not assumed weights — they are estimated from Big Ten game data.' },
-          { label: 'Why TOV/ORB are omitted in conference-only Tier 1', color: T.amber, text: 'With only the small conference-only team-season sample, TOV% and ORB% are sufficiently correlated with eFG% that all models — including unconstrained ridge — produce wrong-signed coefficients for those two factors. The constrained model correctly zeroes them. The D1-trained row in the Model Selection panel (open it for details) fits on n≈1400 and recovers stable, non-zero TOV/ORB estimates, demonstrating the constraint is a small-sample artifact rather than a structural fact.' },
-          { label: 'Model selection logic', color: T.blue, text: 'Four models are fit: OLS, Ridge joint, Ridge split (offense/defense separate), and Constrained OLS (NNLS with theory-correct sign constraints). The pipeline auto-selects by LOO-CV R² and sign validity. EPA event values always come from the constrained model to ensure correct sign direction.' },
-          { label: 'Tier 1 vs Tier 2', color: T.green, text: 'Tier 1 uses season-aggregate four-factor data (Barttorvik, 2022–2026). Tier 2 uses per-game box scores from the ESPN API for the same schools and seasons — ~28× more observations than Tier 1, which better isolates game-level variance and stabilises TOV/ORB estimates. The Tier 2 panel is now populated with real box scores (no longer synthetic).' },
+          { label: 'What EPA measures', color: T.accentSoft, text: 'EPA (Expected Points Added) converts the four-factor regression coefficients into intuitive per-event values — a made 2-pt FG, a turnover, an offensive rebound, etc., each in points of net efficiency per 100 possessions. These are not assumed weights; they are estimated directly from Big Ten game data.' },
+          { label: 'Why per-game data', color: T.green, text: 'The model is fit on ~2,461 real Big Ten box scores rather than season aggregates. Game-level variance breaks the eFG%/TOV%/ORB% collinearity that destabilised the old small-sample season fit, so all eight four-factor coefficients come back stable and textbook-signed (turnovers negative, rebounds positive) with no sign constraints or external training data needed.' },
+          { label: 'Model fit', color: T.blue, text: 'A single joint ridge (10-fold cross-validated α) predicts net efficiency from the eight factors. On the per-game sample it reaches R²≈0.98 / CV R²≈0.98 with all VIFs near 1 — no collinearity problems. Open the diagnostics panel for VIF, correlation, and coefficient-stability details.' },
         ]} />
 
         {pipeline.status !== 'error' && (
@@ -509,17 +405,13 @@ export default function EpaLab({ embedded = false }) {
             <DiagnosticsPanel
               diagnostics={pipeline.diagnostics}
               messages={pipeline.messages}
-              selectionReason={pipeline.selectionReason}
-              models={pipeline.models}
-              selectedModelKey={sel}
-              viewModelKey={viewModelKey}
-              onSelectModel={setViewModelKey}
+              signIssues={pipeline.signIssues}
             />
           </div>
         )}
 
         <MethodologyPanel
-          howItWorks="The EPA pipeline fits ridge regression (with cross-validated regularization) to predict net efficiency from the four Dean Oliver factors. Coefficients are then scaled to per-event units using a league-average FGA/100 denominator derived from the scoring identity: PPP = FGA_p100 × (2·eFG + FT%·FTR)."
+          howItWorks="The EPA pipeline fits a single ridge regression (cross-validated regularization) on Big Ten per-game box scores to predict net efficiency from the eight Dean Oliver four-factor terms. Coefficients are then scaled to per-event units using a league-average FGA/100 denominator derived from the scoring identity: PPP = FGA_p100 × (2·eFG + FT%·FTR)."
           sections={[
             { title: 'Four Factors',  keys: ['efg_o', 'efg_d', 'tov_o', 'tov_d', 'orb', 'drb', 'ftr_o', 'ftr_d'] },
             { title: 'Efficiency',    keys: ['adjoe', 'adjde', 'net_efficiency', 'barthag'] },

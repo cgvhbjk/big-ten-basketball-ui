@@ -18,7 +18,7 @@ A hub with three tabbed sub-views:
   - *FDR Scan* — sweeps many metric pairs and applies Benjamini–Hochberg false-discovery-rate correction so "significant" hits survive multiple testing.
   - *Scheme Analysis* — classifies every team-season into offensive archetypes (Run & Gun / Transition Attack / Spread Offense / Grind It Out) and defensive archetypes (High Pressure / Rim Protection / Coverage / Standard), then compares any outcome across schemes. Cut-points self-calibrate to the loaded distribution; an empirical k-means clustering is also provided.
   - *Roster & Bio* — minute-weighted team biodata aggregates (avg height, class-year experience, % guard/forward/big minutes) scattered against any outcome metric, plus a player-level biodata scatter.
-- **EPA Models** — Expected Points Added from a four-factor regression pipeline (OLS, cross-validated ridge, split ridge, sign-constrained NNLS) with automatic model selection and diagnostics. See `EPA_MODELS.md`.
+- **EPA Models** — Expected Points Added from a single four-factor ridge regression fit on real Big Ten per-game box scores (ESPN, ~2,461 games), with event-EPA conversion and collinearity diagnostics. See `EPA_MODELS.md`.
 
 ### Players (`/players`)
 Three tabs:
@@ -52,28 +52,25 @@ The app reads bundled JSON in `src/data/`. Regenerate it from source with:
 npm install
 npm run fetch-data     # Barttorvik team + player stats  → teamSeasons.json, players.json
 npm run fetch-games    # ESPN schedules + scores         → games.json
-npm run fetch-d1       # D1-wide four factors (EPA train) → d1TeamSeasons.json
-npm run precompute     # re-fit win model / Pythagorean / EPA coefficients
-# optional, slow (~10-20 min): per-game box scores for Tier-2 EPA
-npm run fetch-gamelogs
+npm run fetch-gamelogs # ESPN per-game box scores (EPA)  → gameLogs.json  (slow, ~10-20 min)
+npm run precompute     # re-fit win model / Pythagorean
 ```
 
-`fetch-games`/`fetch-gamelogs` read `teamSeasons.json` for conference membership, so run `fetch-data` first. `precompute` is deterministic in the data files and re-runs whenever they change.
+`fetch-games`/`fetch-gamelogs` read `teamSeasons.json` for conference membership, so run `fetch-data` first. The EPA model is fit live from `gameLogs.json`, so `precompute` only caches the win-probability and Pythagorean constants; it's deterministic in the data files and re-runs whenever they change.
 
 > **Note:** Barttorvik (an AWS-WAF-fronted site) blocks some networks/IPs with a 403. If `fetch-data` fails with HTTP 403, run it from a different network. ESPN-based `fetch-games` is unaffected.
 
 ### Adding a new season
 
-The season list is hardcoded in **three** places — bump all three to the new spring year:
+The season list is hardcoded in **two** places — bump both to the new spring year:
 
 - `src/data/constants.js` — `YEARS` (drives every year dropdown/button in the UI)
 - `scripts/fetch-data.mjs` — `YEARS` (team + player fetch)
-- `scripts/fetch-d1-data.mjs` — `YEARS` (D1-wide EPA training data)
 
 Then regenerate in order (`fetch-games`/`fetch-gamelogs` pick up the new year automatically from `teamSeasons.json`):
 
 ```bash
-npm run fetch-data && npm run fetch-games && npm run fetch-d1 && npm run derive-aggregates && npm run precompute
+npm run fetch-data && npm run fetch-games && npm run fetch-gamelogs && npm run derive-aggregates && npm run precompute
 ```
 
 Finally, add the season's head coaches to `src/data/coachMeta.js` (hand-curated, flagged approximate — used by the Positions "By coach" grouping and the Insights cluster check), and bump the default-year values in `src/store/useStore.js`, `src/store/usePlayerStore.js`, and `src/store/useInsightStore.js` if the app should open on the new season.

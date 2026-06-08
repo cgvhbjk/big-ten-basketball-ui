@@ -23,44 +23,22 @@ export const FIELD_MAP = {
   ftPct:    'ft_pct',
 }
 
-// Sign constraints — empirically locked from the Phase-0 encoding audit.
-// See `encodingAudit.js` and the unit test in `__tests__/encodingAudit.test.js`.
-// Barttorvik's slice-JSON delivers `tov_o`, `tov_d`, `orb` with non-standard
-// directional encoding (likely percentile-rank-where-higher-is-better for the
-// TOV columns; `orb` is opposite-sign to textbook). Rather than guess from
-// the label, we fit a four-factor OLS once at audit time and lock in the
-// observed partial signs. The audit re-runs in CI; if a data refresh ever
-// changes these signs, the test fails loudly instead of silently producing
-// wrong-sign EPA coefficients.
-
-// Joint-model sign constraints, predicting net efficiency = ppp − opp_ppp.
-// Defensive coefficients flip relative to the split DEFENSE model because
-// `−opp_ppp` reverses their effect on net.
+// Sign constraints for the per-game four-factor model, predicting net
+// efficiency = (pts − opp_pts) per 100 possessions. The factors are computed
+// from box scores in standard (textbook) direction: TOV% = turnovers/poss
+// (higher is worse), ORB% = offensive-rebound rate (higher is better), and so
+// on. These are the signs the n≈2,461 Big Ten per-game fit returns; checkSigns
+// flags any coefficient that comes back against them (a data/encoding problem,
+// not small-sample noise — at this sample size all eight are stable).
 export const SIGN_CONSTRAINTS = {
-  off_eFG:  1,
-  off_TOV:  1,   // verified empirically (β=+0.55 on standardized X)
-  off_ORB: -1,   // verified empirically (β=-2.63)
-  off_FTR:  1,
-  def_eFG: -1,
-  def_TOV: -1,   // empirically near-zero (β=+0.07); kept at theoretical sign — see audit warning
-  def_ORB:  1,   // own DRB% helps net (high drb → low adjde → high net)
-  def_FTR: -1,
-}
-
-// Split OFFENSE model — predicts ppp (higher is better).
-export const SIGN_CONSTRAINTS_OFF = {
-  off_eFG:  1,
-  off_TOV:  1,   // verified empirically (β=+0.55)
-  off_ORB: -1,   // verified empirically (β=-2.63) — `orb` is encoded opposite to textbook ORB%
-  off_FTR:  1,
-}
-
-// Split DEFENSE model — predicts opp_ppp (higher is WORSE for the defending team).
-export const SIGN_CONSTRAINTS_DEF = {
-  def_eFG:  1,
-  def_TOV:  1,   // empirically near-zero (β=+0.07); audit-recommended sign retained — flagged as low-confidence
-  def_ORB: -1,   // verified empirically (β=-2.42) — own DRB% reduces opp scoring
-  def_FTR:  1,
+  off_eFG:  1,   // more eFG%               → higher net
+  off_TOV: -1,   // more turnovers          → lower net
+  off_ORB:  1,   // more offensive rebounds → higher net
+  off_FTR:  1,   // more free-throw rate    → higher net
+  def_eFG: -1,   // more opponent eFG%      → lower net
+  def_TOV:  1,   // more opponent turnovers → higher net
+  def_ORB: -1,   // more opponent off. reb. → lower net
+  def_FTR: -1,   // more opponent FT rate   → lower net
 }
 
 // Default pipeline configuration

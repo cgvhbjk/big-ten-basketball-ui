@@ -57,12 +57,3 @@ export function getPythagoreanModel(teamSeasons, games, { mode = 'adjusted' } = 
 export function isCalibrationCached(teamSeasons, games) {
   return precomputed?.dataHash === _dataHash(teamSeasons, games)
 }
-
-/**
- * Get the D1-trained EPA coefficient set. Returns null when the precompute
- * script hasn't seen a d1TeamSeasons.json yet — caller falls back to the
- * conference-only fit produced by runEPAPipeline.
- */
-export function getD1EPAModels() {
-  return precomputed?.d1Models ?? null
-}

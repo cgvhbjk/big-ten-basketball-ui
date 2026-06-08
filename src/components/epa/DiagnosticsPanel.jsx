@@ -1,8 +1,5 @@
 import { useState } from 'react'
 import { T, CARD } from '../../styles/theme.js'
-import { MODEL_LABELS } from '../../utils/epaModels/config.js'
-import { getD1EPAModels } from '../../utils/calibrationCache.js'
-import ModelComparisonTable from './ModelComparisonTable.jsx'
 
 function Badge({ level, children }) {
   const colors = {
@@ -55,27 +52,15 @@ function VIFTable({ vif }) {
   )
 }
 
-export default function DiagnosticsPanel({
-  diagnostics, messages, selectionReason,
-  models, selectedModelKey, viewModelKey, onSelectModel,
-}) {
+export default function DiagnosticsPanel({ diagnostics, messages, signIssues }) {
   const [open, setOpen] = useState(false)
 
   if (!diagnostics) return null
 
-  const { n, kJoint, kSplit, obsPerPredictorJoint, obsPerPredictorSplit, targetMode } = diagnostics
+  const { n, k, obsPerPredictor, vif } = diagnostics
   const hasWarnings = messages?.length > 0
-  const vif = diagnostics.joint?.vif
   const maxVif = vif ? Math.max(...Object.values(vif)) : null
-
-  const viewingKey  = viewModelKey ?? selectedModelKey
-  const modelLabel  = MODEL_LABELS[viewingKey] ?? viewingKey ?? '—'
-
-  // Sign-issue counts across the four conference models — used in the plain-English
-  // summary at the top of the expanded panel.
-  const confIssueTotals = ['ols_joint', 'ridge_joint', 'ridge_split', 'constrained_ols']
-    .map(k => ({ k, n: models?.[k]?.signIssues?.length ?? 0 }))
-  const confTotalIssues = confIssueTotals.reduce((s, x) => s + x.n, 0)
+  const nSignIssues = signIssues?.length ?? 0
 
   return (
     <div style={{ ...CARD, marginBottom: 20, borderColor: hasWarnings ? T.amber : T.border }}>
@@ -84,10 +69,13 @@ export default function DiagnosticsPanel({
         style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}
       >
         <span style={{ fontSize: 10, fontWeight: 700, color: T.textMin, letterSpacing: '0.07em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          Model Selection
+          Model Diagnostics
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-          <span style={{ fontSize: 11, color: T.textMd }}>Currently using <Badge level="info">{modelLabel}</Badge></span>
+          <Badge level={nSignIssues === 0 ? 'ok' : 'warn'}>
+            {nSignIssues === 0 ? 'all signs correct' : `${nSignIssues} sign issue${nSignIssues > 1 ? 's' : ''}`}
+          </Badge>
+          {maxVif != null && <Badge level={maxVif < 5 ? 'ok' : maxVif < 10 ? 'warn' : 'error'}>max VIF {maxVif.toFixed(1)}</Badge>}
           {hasWarnings && <Badge level="warn">{messages.length} warning{messages.length > 1 ? 's' : ''}</Badge>}
         </span>
         <span style={{ fontSize: 11, color: T.textMin, whiteSpace: 'nowrap' }}>{open ? '▲ collapse' : '▼ details'}</span>
@@ -95,82 +83,34 @@ export default function DiagnosticsPanel({
 
       {open && (
         <div style={{ marginTop: 16 }}>
-          {/* Plain-English summary block — answers "what am I looking at?" before
-              the dense tables. Without this readers had to assemble the story
-              themselves from numeric metrics and footnotes. */}
           <div style={{ background: T.surf2, borderRadius: 6, padding: '12px 14px', marginBottom: 16, fontSize: 12, color: T.textMd, lineHeight: 1.6 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.accentSoft, marginBottom: 6, letterSpacing: '0.05em' }}>
               WHAT THIS PANEL SHOWS
             </div>
-            We fit four versions of the same Dean Oliver four-factor model. The pipeline picks the one with the best
-            out-of-sample fit and no wrong-signed coefficients — currently <strong style={{ color: T.text }}>{MODEL_LABELS[selectedModelKey]}</strong>.
-            The two tables below let you compare all four models side-by-side, first on the conference team-seasons,
-            then on the full D1 corpus (≈1,400 team-seasons) as a sanity check.
-            {confTotalIssues > 0 && (
-              <> At conference n={n}, <strong style={{ color: T.amber }}>{confTotalIssues} sign issue{confTotalIssues > 1 ? 's' : ''}</strong> appear in the joint models — these are statistical noise around weak coefficients, not encoding bugs (D1 confirms the correct signs at scale).</>
+            One ridge regression on the eight Dean Oliver four-factor terms, fit on {n} Big Ten per-game box scores.
+            At this sample size the four factors are nearly orthogonal (all VIFs near 1), so every coefficient comes back
+            stable and textbook-signed — no sign constraints or external training data required.
+            {nSignIssues > 0 && (
+              <> <strong style={{ color: T.amber }}>{nSignIssues} coefficient{nSignIssues > 1 ? 's' : ''}</strong> came back against the expected sign — investigate the data before trusting the affected event values.</>
             )}
           </div>
 
-          <div style={{ fontSize: 11, fontWeight: 600, color: T.accentSoft, marginBottom: 8 }}>MODEL COMPARISON · CONFERENCE (n={n})</div>
-          <p style={{ fontSize: 11, color: T.textLow, marginBottom: 8 }}>
-            Hover any model name or column header for a plain-English description. Click a row to view that model's coefficients and scatter plot in the Tier 1 card.
-          </p>
-          <ModelComparisonTable
-            models={models}
-            selectedModel={selectedModelKey}
-            viewModelKey={viewModelKey}
-            onSelectModel={onSelectModel}
-          />
-
-          <div style={{ fontSize: 11, color: T.textLow, margin: '16px 0 8px', padding: '8px 10px', background: T.surf2, borderRadius: 5 }}>
-            <span style={{ fontWeight: 600, color: T.textMd }}>Why this model was auto-selected: </span>
-            {selectionReason ?? '—'}
-          </div>
-
-          {(() => {
-            const d1 = getD1EPAModels()
-            if (!d1) return null
-            return (
-              <div style={{ marginTop: 20 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: T.green, marginBottom: 8, letterSpacing: '0.06em' }}>
-                  MODEL COMPARISON · D1-TRAINED (n={d1.nTrain})
-                </div>
-                <p style={{ fontSize: 11, color: T.textLow, marginBottom: 8 }}>
-                  Same four models, refit on the full Barttorvik D1 corpus. Compare row-for-row against the conference table above —
-                  sign issues that appear at n={n} should disappear here. If they do, those issues were small-sample noise,
-                  not encoding bugs.
-                </p>
-                <ModelComparisonTable
-                  models={d1}
-                  selectedModel={d1.selectedModel}
-                />
-                <p style={{ fontSize: 10, color: T.textMin, marginTop: 6, fontStyle: 'italic' }}>
-                  Caveat: D1 target is opponent-adjusted efficiency (adjoe−adjde), not raw ppp — the Barttorvik slice endpoint
-                  doesn't expose raw ppp. Coefficients are slightly biased but the sign-direction sanity check is unaffected.
-                </p>
-              </div>
-            )
-          })()}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 600, color: T.accentSoft, marginBottom: 6 }}>SAMPLE SIZE</div>
-              <Row label="Observations (n)"          value={n} />
-              <Row label="Joint model predictors"    value={kJoint} />
-              <Row label="Joint obs/predictor ratio" value={obsPerPredictorJoint} level={obsPerPredictorJoint < 10 ? 'warn' : 'ok'} />
-              <Row label="Split model predictors"    value={kSplit} />
-              <Row label="Split obs/predictor ratio" value={obsPerPredictorSplit} level={obsPerPredictorSplit < 10 ? 'warn' : 'ok'} />
-              <Row label="Target mode"               value={targetMode} level={targetMode === 'adjusted' ? 'warn' : 'ok'} />
+              <Row label="Observations (games)"   value={n} />
+              <Row label="Predictors"             value={k} />
+              <Row label="Obs / predictor ratio"  value={obsPerPredictor} level={obsPerPredictor < 10 ? 'warn' : 'ok'} />
               <p style={{ fontSize: 10, color: T.textMin, marginTop: 6, lineHeight: 1.5 }}>
-                Rule of thumb: ≥10 observations per predictor for a stable fit. Below that, expect noisy coefficients.
+                Rule of thumb: ≥10 observations per predictor for a stable fit. Per-game data clears this by a wide margin.
               </p>
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.accentSoft, marginBottom: 6 }}>COLLINEARITY (VIF — joint model)</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.accentSoft, marginBottom: 6 }}>COLLINEARITY (VIF)</div>
               <VIFTable vif={vif} />
               <p style={{ fontSize: 10, color: T.textMin, marginTop: 6, lineHeight: 1.5 }}>
                 {maxVif != null && maxVif < 5
-                  ? <>All VIFs under 5 (max {maxVif.toFixed(1)}) — <strong style={{ color: T.green }}>no collinearity problems</strong>. Sign issues, if any, are sample-noise, not predictor entanglement.</>
+                  ? <>All VIFs under 5 (max {maxVif.toFixed(1)}) — <strong style={{ color: T.green }}>no collinearity problems</strong>.</>
                   : <>VIF ≥ 5 = moderate concern, ≥ 10 = severe. Inspect any flagged predictors before trusting their coefficients.</>}
               </p>
             </div>

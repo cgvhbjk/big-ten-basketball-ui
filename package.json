@@ -12,7 +12,6 @@
     "fetch-data": "node scripts/fetch-data.mjs",
     "fetch-games": "node scripts/fetch-games.mjs",
     "fetch-gamelogs": "node scripts/fetch-gamelogs.mjs",
-    "fetch-d1": "node scripts/fetch-d1-data.mjs",
     "fetch-combine": "node scripts/fetch-combine-data.mjs",
     "derive-aggregates": "node scripts/derive-aggregates.mjs",
     "refresh-data": "npm run fetch-data && npm run fetch-games && npm run derive-aggregates && npm run precompute",

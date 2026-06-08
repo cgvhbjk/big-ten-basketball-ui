@@ -64,23 +64,25 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
   const { off_eFG, off_TOV, off_ORB, off_FTR, def_eFG, def_TOV } = coefficients
   const fgaP100      = overrides.avgFGAp100   ?? leagueRates.avgFGAp100
   const modelVariant = overrides.modelVariant ?? 'joint'
+  const encoding     = overrides.encoding     ?? 'textbook'
   const scale        = 100 / fgaP100
 
   // ── Aggregate values (regression-only) ────────────────────────────────────
-  // Note on tov_o / orb sign flip: Barttorvik's `tov_o` and `orb` columns are
-  // encoded with non-textbook direction (Phase-0 audit verified: tov_o higher
-  // = better, orb higher = worse — likely percentile-rank-style fields). The
-  // regression coefficients lock those encoded directions, so off_TOV is
-  // positive and off_ORB is negative on the encoded variable. To present
-  // event-EPA values in natural-language direction (turnover negative,
-  // rebound positive), the per-event aggregate negates these two before
-  // display. The model coefficients themselves are unchanged — this is purely
-  // a display-side flip so the row labels match the values' interpretation.
+  // off_TOV / off_ORB direction depends on how the four factors were encoded:
+  //   'textbook' (per-game box scores): TOV%/ORB% in standard direction, so the
+  //     coefficients already read naturally — off_TOV < 0, off_ORB > 0. No flip.
+  //   'barttorvik' (legacy team-season slice): tov_o/orb were non-textbook
+  //     (tov_o higher = better, orb higher = worse), so the event-EPA values
+  //     negated them to restore natural-language direction.
+  // The model coefficients themselves are never changed — this only affects the
+  // displayed per-event values so the row labels match (turnover negative,
+  // rebound positive).
+  const flip = encoding === 'textbook' ? 1 : -1
   const aggregate = {
     made2FG:            +(off_eFG  * scale).toFixed(3),
     made3FG:            +(off_eFG  * scale * THREE_PT_eFG_MULTIPLIER).toFixed(3),
-    offTurnover:        +(-off_TOV).toFixed(3),
-    offRebound:         +(-off_ORB * ORB_POSSESSION_CREDIT).toFixed(3),
+    offTurnover:        +(flip * off_TOV).toFixed(3),
+    offRebound:         +(flip * off_ORB * ORB_POSSESSION_CREDIT).toFixed(3),
     foulDrawn:          +(off_FTR  * scale).toFixed(3),
     // Joint model: def_TOV > 0 (more opp TO → better net eff) → EPA = +def_TOV
     // Split model: def_TOV < 0 (more opp TO → lower opp_ppp) → EPA = −def_TOV
@@ -105,9 +107,8 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
     const tovMap   = esm.offTurnover
     const tovBase  = +(tovMap.live_pct * ps.transition_live_steal.ep +
                        tovMap.dead_pct * ps.dead_ball_inbound.ep).toFixed(3)
-    // Delta: regression value (per-100-poss) normalized to per-possession scale
-    // When tov_o encoding is ambiguous, β_TOV may be 0 (constrained) — delta is 0
-    const tovDelta = +(off_TOV / 100).toFixed(3)
+    // Delta: regression value (per-100-poss) normalized to per-possession scale.
+    const tovDelta = +(flip * off_TOV / 100).toFixed(3)
     const tovLiveDelta = +(tovBase - ps.dead_ball_inbound.ep).toFixed(3)
 
     // Offensive rebound state context
@@ -115,7 +116,7 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
     const orbMap   = esm.offRebound
     const orbBase  = +(orbMap.putback_pct * ps.putback_attempt.ep +
                        orbMap.reset_pct   * ps.reset_possession.ep).toFixed(3)
-    const orbDelta = +(off_ORB * ORB_POSSESSION_CREDIT / 100).toFixed(3)
+    const orbDelta = +(flip * off_ORB * ORB_POSSESSION_CREDIT / 100).toFixed(3)
 
     // FT foul drawn context.
     // baseline_epa.json declares three shares (two_shot, one_and_one, and_one) but
@@ -175,9 +176,7 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
         combined: +(defTovBase + defTovDelta).toFixed(3),
         note: 'When you force a turnover, your team gains this expected EP.',
       },
-      _deltaNote: off_TOV === 0
-        ? 'Regression deltas are 0 because the constrained model zeroed ambiguous tov_o/orb coefficients. Baseline state values are reliable; deltas require per-team game-log data (Tier 2).'
-        : 'Deltas reflect conference-aggregate regression vs NCAA baseline. Per-team deltas require per-team game logs (Tier 2).',
+      _deltaNote: 'Deltas reflect the Big Ten per-game four-factor regression vs the NCAA baseline state values.',
     }
   }
 
@@ -185,10 +184,12 @@ export function convertToEventEPA(coefficients, leagueRates, baselineEP = null, 
     denominator:      'FGA-based (scoring identity: ppp = FGA_p100 × (2·eFG + ft_pct·ftr))',
     avgFGAp100:       fgaP100,
     unit:             'points of net efficiency per 100 possessions, per event',
-    tovAssumption:    'tov_o and orb columns in Barttorvik have non-textbook encoding direction; aggregate event EPA negates β_TOV and β_ORB for display so labels match natural-language interpretation (turnover negative, rebound positive)',
+    tovAssumption:    encoding === 'textbook'
+      ? 'Four factors computed from box scores in standard direction; event EPA reads the coefficients as-is (turnover negative, rebound positive).'
+      : 'Legacy Barttorvik encoding: β_TOV/β_ORB negated for display so labels match natural-language interpretation.',
     orbCreditRate:    ORB_POSSESSION_CREDIT,
     stateModel:       baselineEP ? 'Base + Delta (baseline_epa.json + regression coefficient)' : 'regression-only (no baseline loaded)',
-    uncertaintyNote:  'Constrained model zeros ambiguous coefficients; see EPA_MODELS.md for field encoding details',
+    uncertaintyNote:  'Coefficients are a ridge fit on Big Ten per-game box scores; see EPA_MODELS.md for details.',
   }
 
   return { values: aggregate, states, meta }

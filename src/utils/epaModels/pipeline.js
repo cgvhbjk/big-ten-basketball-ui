@@ -1,301 +1,169 @@
-import { DEFAULT_CONFIG, FIELD_MAP, SIGN_CONSTRAINTS, SIGN_CONSTRAINTS_OFF, SIGN_CONSTRAINTS_DEF, MODEL_LABELS } from './config.js'
-import { validateTeamSeasons, filterValidRows } from './validate.js'
-import { OFF_FEATURES, DEF_FEATURES, ALL_FEATURES, buildMatrix, attachFeatures } from './features.js'
-import { fitOLS, fitRidgeCV, fitSplitRidgeCV, fitConstrained, checkSigns } from './models.js'
-import { runDiagnostics, residualDiagnostics } from './diagnostics.js'
+// EPA pipeline — a single four-factor model fit on Big Ten per-game box scores.
+//
+// Earlier versions ran two tiers (season-aggregate + per-game) plus a D1-wide
+// training crutch, because conference-only season data (n≈78, acute in the Ivy
+// sibling repo) was too small to recover stable TOV/ORB coefficients. With
+// ~2,461 real Big Ten box scores the per-game fit is stable on its own
+// (R²≈0.98, all eight textbook signs correct), so this is now the only model.
+// `teamSeasons` is used solely to derive the league-rate denominator for the
+// per-event EPA conversion.
+
+import { DEFAULT_CONFIG } from './config.js'
+import { validateGameLogs } from './validate.js'
+import { ALL_FEATURES } from './features.js'
+import { fitRidgeCV, checkSigns } from './models.js'
+import { runDiagnostics } from './diagnostics.js'
 import { computeLeagueRates, convertToEventEPA } from './epaConversion.js'
-import { computeFit } from './matrixOps.js'
 
 const ALPHAS = DEFAULT_CONFIG.ridge.alphas
 
+// ── Game-factor helpers ───────────────────────────────────────────────────────
+
+// Dean Oliver possession estimator
+export function estimatePossessions(fga, orb, tov, fta) {
+  return Math.max(fga - orb + tov + 0.44 * fta, 1)
+}
+
+// Compute per-100-possession four factors from one box score, in standard
+// (textbook) direction: TOV% = turnovers/poss (higher worse), ORB% =
+// offensive-rebound rate (higher better), etc. Returns null for rows that can't
+// produce finite factors.
+export function computeGameFactors(g) {
+  const poss  = estimatePossessions(g.fga,     g.orb,     g.tov,     g.fta)
+  const oPoss = estimatePossessions(g.opp_fga, g.opp_orb, g.opp_tov, g.opp_fta)
+  if (g.fga === 0 || g.opp_fga === 0) return null
+
+  // Derive points from box score if not stored (ESPN API omits points from statistics array)
+  const pts     = g.pts     || (2 * g.fgm     + g.fg3m     + (g.ftm     ?? 0))
+  const opp_pts = g.opp_pts || (2 * g.opp_fgm + g.opp_fg3m + (g.opp_ftm ?? 0))
+
+  const eFG_o = ((g.fgm + 0.5 * g.fg3m) / g.fga) * 100
+  const tov_o = (g.tov / poss) * 100
+  // Rebound-rate denominators must guard 0 explicitly. `?? 0` only fills in for
+  // a missing field; a real value of 0 (no rebounds at all) bails the row so a
+  // contaminated rate never enters the fit.
+  const orbDenom_o = g.orb + (g.opp_drb ?? 0)
+  const orbDenom_d = g.opp_orb + (g.drb ?? 0)
+  if (orbDenom_o === 0 || orbDenom_d === 0) return null
+  const orb_o = (g.orb / orbDenom_o) * 100
+  const ftr_o = (g.ftm / g.fga) * 100
+  const eFG_d = ((g.opp_fgm + 0.5 * g.opp_fg3m) / g.opp_fga) * 100
+  const tov_d = (g.opp_tov / oPoss) * 100
+  const orb_d = (g.opp_orb / orbDenom_d) * 100
+  const ftr_d = (g.opp_ftm / g.opp_fga) * 100
+  const netEff = ((pts / poss) - (opp_pts / oPoss)) * 100
+
+  const row = { eFG_o, tov_o, orb_o, ftr_o, eFG_d, tov_d, orb_d, ftr_d, netEff }
+  const allFinite = Object.values(row).every(v => isFinite(v))
+  return allFinite ? row : null
+}
+
 // ── Main pipeline ─────────────────────────────────────────────────────────────
-// Returns a comprehensive result object consumed by the UI.
 
-export function runEPAPipeline(teamSeasons, opts = {}) {
-  const targetMode = opts.targetMode  ?? DEFAULT_CONFIG.targetMode
-  const baselineEP = opts.baselineEP  ?? null   // baseline_epa.json, passed in from caller
-  const messages   = []
+const cap = s => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s)
+const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length
 
-  // Optional separate training set: when provided, coefficients are *fitted*
-  // on `trainingTeamSeasons` (e.g., the full D1 corpus, n≈1400) but predictions,
-  // observations, residuals, and diagnostics are computed against the original
-  // `teamSeasons` (e.g., conference-only). This is the primary lever for
-  // dissolving the n=32 collinearity that forces TOV/ORB out of the constrained
-  // model. When omitted, training === apply (legacy behavior).
-  const trainingTeamSeasons = opts.trainingTeamSeasons ?? teamSeasons
-  const distinctTraining    = trainingTeamSeasons !== teamSeasons
+export function runEPAPipeline(gameLogs, teamSeasons, opts = {}) {
+  const baselineEP = opts.baselineEP ?? null
 
-  // 1. Validate
-  const validation = validateTeamSeasons(teamSeasons, targetMode)
-  messages.push(...validation.warnings)
+  // 1. Validate the box-score input (guards empty / placeholder data).
+  const validation = validateGameLogs(gameLogs ?? [])
   if (!validation.ok) {
-    return { status: 'error', messages: [...validation.errors, ...messages], models: null }
-  }
-  if (distinctTraining) {
-    const tValidation = validateTeamSeasons(trainingTeamSeasons, targetMode)
-    messages.push(...tValidation.warnings.map(w => `[training] ${w}`))
-    if (!tValidation.ok) {
-      return { status: 'error', messages: [...tValidation.errors.map(e => `[training] ${e}`), ...messages], models: null }
-    }
-  }
-
-  // 2. Target columns
-  const offTarget = targetMode === 'adjusted' ? FIELD_MAP.adjOE  : FIELD_MAP.rawOE
-  const defTarget = targetMode === 'adjusted' ? FIELD_MAP.adjDE  : FIELD_MAP.rawDE
-
-  // 3. Attach named features and filter valid rows — for both apply and training.
-  const enriched = attachFeatures(teamSeasons)
-  const allCols  = [...ALL_FEATURES, offTarget, defTarget]
-  const valid    = filterValidRows(enriched, allCols)
-  const n        = valid.length
-
-  const trainEnriched = distinctTraining ? attachFeatures(trainingTeamSeasons) : enriched
-  const trainValid    = distinctTraining ? filterValidRows(trainEnriched, allCols) : valid
-  const nTrain        = trainValid.length
-
-  // 4. League rates for EPA conversion (always from the apply set — these
-  //    define what counts as "league average" for the consumer).
-  const leagueRates = computeLeagueRates(teamSeasons)
-
-  // 5. Build matrices — separate training (used for fit) and apply (used for
-  //    predictions, observations, residuals).
-  const yTargetCol = offTarget === FIELD_MAP.rawOE ? FIELD_MAP.netRaw : 'net_efficiency'
-  const { X: XApply }     = buildMatrix(valid, ALL_FEATURES, yTargetCol)
-  const { X: XOff }       = buildMatrix(valid, OFF_FEATURES, offTarget)
-  const { X: XDef }       = buildMatrix(valid, DEF_FEATURES, defTarget)
-  const yNet              = valid.map(ts => ts[offTarget] - ts[defTarget])
-  const yOff              = valid.map(ts => ts[offTarget])
-  const yDef              = valid.map(ts => ts[defTarget])
-
-  const { X: XTrain }     = distinctTraining
-    ? buildMatrix(trainValid, ALL_FEATURES, yTargetCol)
-    : { X: XApply }
-  const { X: XOffTrain }  = distinctTraining ? buildMatrix(trainValid, OFF_FEATURES, offTarget) : { X: XOff }
-  const { X: XDefTrain }  = distinctTraining ? buildMatrix(trainValid, DEF_FEATURES, defTarget) : { X: XDef }
-  const yNetTrain         = distinctTraining ? trainValid.map(ts => ts[offTarget] - ts[defTarget]) : yNet
-  const yOffTrain         = distinctTraining ? trainValid.map(ts => ts[offTarget]) : yOff
-  const yDefTrain         = distinctTraining ? trainValid.map(ts => ts[defTarget]) : yDef
-
-  const XFull = XApply  // legacy alias used by downstream blocks (diagnostics, scatter)
-  // Apply a beta vector to the apply-set design matrix → yHat for observations.
-  const applyBeta = beta => XApply.map(row => row.reduce((s, v, j) => s + v * beta[j], 0))
-
-  // 6. Fit all models
-  const makeObs = (yHat) => valid.map((ts, i) => ({
-    label: `${ts.school.charAt(0).toUpperCase() + ts.school.slice(1)} ${ts.year}`,
-    actual:    +yNet[i].toFixed(2),
-    predicted: +yHat[i].toFixed(2),
-  }))
-
-  // Normalised result envelope. Every model branch returns the same shape so
-  // downstream consumers (UI tables, model selection, diagnostics) never have
-  // to special-case "did this branch throw?" — they read `.ok` once.
-  // ok=true  → body is in `data`
-  // ok=false → reason is in `error`; data/cvR2/etc are absent
-  const _ok  = (data) => ({ ok: true, error: null, ...data })
-  const _err = (msg)  => ({ ok: false, error: msg })
-
-  // Wrap a model-building closure: turn thrown exceptions and { error } returns
-  // (from fitConstrained etc.) into the same shape the success path uses.
-  const _runModel = (label, build) => {
-    try {
-      const out = build()
-      if (out && out.error) return _err(out.error)
-      return _ok(out)
-    } catch (e) {
-      return _err(`${label}: ${e?.message ?? String(e)}`)
-    }
-  }
-
-  const olsModel = _runModel('ols_joint', () => {
-    const m    = fitOLS(XTrain, yNetTrain, ALL_FEATURES)
-    const conv = convertToEventEPA(namedCoeffs(m.beta, ALL_FEATURES), leagueRates, baselineEP, { modelVariant: 'joint' })
-    const signs = checkSigns(m.beta, ALL_FEATURES)
-    const yHatApply = distinctTraining ? applyBeta(m.beta) : m.yHat
-    return { ...m, coefficients: namedCoeffs(m.beta, ALL_FEATURES), eventEPA: conv.values, states: conv.states, convMeta: conv.meta, signIssues: signs, cvR2: null, observations: makeObs(yHatApply) }
-  })
-
-  const ridgeJoint = _runModel('ridge_joint', () => {
-    const m    = fitRidgeCV(XTrain, yNetTrain, ALL_FEATURES, { alphas: ALPHAS })
-    const conv = convertToEventEPA(namedCoeffs(m.beta, ALL_FEATURES), leagueRates, baselineEP, { modelVariant: 'joint' })
-    const signs = checkSigns(m.beta, ALL_FEATURES)
-    const yHatApply = distinctTraining ? applyBeta(m.beta) : m.yHat
-    return { ...m, coefficients: namedCoeffs(m.beta, ALL_FEATURES), eventEPA: conv.values, states: conv.states, convMeta: conv.meta, signIssues: signs, observations: makeObs(yHatApply) }
-  })
-
-  const ridgeSplit = _runModel('ridge_split', () => {
-    const m   = fitSplitRidgeCV(XOffTrain, yOffTrain, OFF_FEATURES, XDefTrain, yDefTrain, DEF_FEATURES, { alphas: ALPHAS })
-    const coeffs = {
-      off_eFG: m.combined.off_eFG,
-      off_TOV: m.combined.off_TOV,
-      off_ORB: m.combined.off_ORB,
-      off_FTR: m.combined.off_FTR,
-      def_eFG: m.combined.def_eFG,
-      def_TOV: m.combined.def_TOV,
-      def_ORB: m.combined.def_ORB,
-      def_FTR: m.combined.def_FTR,
-    }
-    const conv   = convertToEventEPA(coeffs, leagueRates, baselineEP, { modelVariant: 'split' })
-    // Check signs using split-model conventions (off predicts ppp, def predicts opp_ppp)
-    const offBeta = [0, ...OFF_FEATURES.map(k => m.combined[k])]
-    const defBeta = [0, ...DEF_FEATURES.map(k => m.combined[k])]
-    const offSigns = checkSigns(offBeta, OFF_FEATURES, SIGN_CONSTRAINTS_OFF)
-    const defSigns = checkSigns(defBeta, DEF_FEATURES, SIGN_CONSTRAINTS_DEF)
-    const signs    = [...offSigns, ...defSigns]
     return {
-      ...m, coefficients: coeffs, eventEPA: conv.values,
-      states: conv.states, convMeta: conv.meta, signIssues: signs,
-      // Combined in-sample fit against net efficiency for scatter plot
-      observations: valid.map((ts, i) => ({
-        label: `${ts.school.charAt(0).toUpperCase() + ts.school.slice(1)} ${ts.year}`,
-        actual:    +yNet[i].toFixed(2),
-        predicted: +(
-          m.offModel.beta[0] + OFF_FEATURES.reduce((s, k, j) => s + m.offModel.beta[j+1]*ts[k], 0) -
-          (m.defModel.beta[0] + DEF_FEATURES.reduce((s, k, j) => s + m.defModel.beta[j+1]*ts[k], 0))
-        ).toFixed(2),
-      })),
+      status:   'error',
+      messages: [...(validation.errors ?? []), ...(validation.warnings ?? [])],
     }
-  })
-
-  // Joint-model sign constraints come from the Phase-0 empirical audit
-  // (encodingAudit.js). Previously this dictionary used textbook signs that
-  // didn't match the Barttorvik encoding direction — three of eight signs
-  // were inverted from what the data actually exhibits.
-  const CONSTRAINED_SIGNS = SIGN_CONSTRAINTS
-  const constrainedOls = _runModel('constrained_ols', () => {
-    const m = fitConstrained(XTrain, yNetTrain, ALL_FEATURES, CONSTRAINED_SIGNS)
-    if (m.error) return m  // error envelope handled by _runModel
-    const conv = convertToEventEPA(namedCoeffs(m.beta, ALL_FEATURES), leagueRates, baselineEP, { modelVariant: 'joint' })
-    const signs = checkSigns(m.beta, ALL_FEATURES, CONSTRAINED_SIGNS)
-    // LOO-CV R² so the selected model is comparable to ridge_split's cvR2.
-    // n is small on conference-only training, so refitting NNLS n times is cheap.
-    // Skip when training set is large (D1 corpus, n≈1400) — LOO would refit
-    // 1400× and the standard error from a single fit on n=1400 is plenty.
-    const nObs = yNetTrain.length
-    let cvR2 = null
-    if (nObs <= 100) {
-      const looPreds = new Array(nObs).fill(null)
-      for (let i = 0; i < nObs; i++) {
-        const trX = XTrain.filter((_, j) => j !== i)
-        const trY = yNetTrain.filter((_, j) => j !== i)
-        const fold = fitConstrained(trX, trY, ALL_FEATURES, CONSTRAINED_SIGNS)
-        if (fold.error || !fold.beta) continue
-        looPreds[i] = XTrain[i].reduce((s, v, k) => s + v * fold.beta[k], 0)
-      }
-      const yMean = yNetTrain.reduce((s, v) => s + v, 0) / nObs
-      const ssTot = yNetTrain.reduce((s, v) => s + (v - yMean) ** 2, 0)
-      const ssRes = yNetTrain.reduce((s, v, i) =>
-        s + (looPreds[i] == null ? 0 : (v - looPreds[i]) ** 2), 0)
-      cvR2 = ssTot > 0 ? +(1 - ssRes / ssTot).toFixed(4) : 0
-    }
-    const yHatApply = distinctTraining ? applyBeta(m.beta) : m.yHat
-    return { ...m, coefficients: namedCoeffs(m.beta, ALL_FEATURES), eventEPA: conv.values, states: conv.states, convMeta: conv.meta, signIssues: signs, cvR2, observations: makeObs(yHatApply) }
-  })
-
-  // 7. Run diagnostics on joint and split feature sets
-  const diagJoint = (() => {
-    try {
-      return runDiagnostics(XFull, yNet, ALL_FEATURES, ridgeJoint.foldBetas ?? null)
-    } catch { return null }
-  })()
-  const diagOff = (() => {
-    try { return runDiagnostics(XOff, yOff, OFF_FEATURES, ridgeSplit.offModel?.foldBetas ?? null) }
-    catch { return null }
-  })()
-  const diagDef = (() => {
-    try { return runDiagnostics(XDef, yDef, DEF_FEATURES, ridgeSplit.defModel?.foldBetas ?? null) }
-    catch { return null }
-  })()
-
-  // 8. Select best model — prefer constrained when sign issues exist
-  const splitHasSignIssues = (ridgeSplit.signIssues?.length ?? 0) > 0
-
-  let bestModel
-  let selectionReason
-
-  if (!ridgeSplit.error && !splitHasSignIssues) {
-    bestModel       = 'ridge_split'
-    selectionReason = `Ridge split selected: LOO-CV R² off=${ridgeSplit.offCvR2} def=${ridgeSplit.defCvR2}. ` +
-      `All four-factor signs match the Phase-0 empirical audit (see encodingAudit.js).`
-  } else if (!constrainedOls.error) {
-    bestModel       = 'constrained_ols'
-    selectionReason =
-      `Constrained OLS selected: ridge split produced ${ridgeSplit.signIssues?.length} sign violation(s) ` +
-      `relative to the Phase-0 empirical signs. NNLS enforces the audit-verified directions and is preferred. ` +
-      `Ridge split CVR² off=${ridgeSplit.offCvR2} def=${ridgeSplit.defCvR2} available for comparison.`
-  } else if (!ridgeSplit.error) {
-    bestModel       = 'ridge_split'
-    selectionReason = `Ridge split selected as best CV model (${ridgeSplit.cvR2} LOO-R²) — note ${ridgeSplit.signIssues?.length} sign issue(s).`
-  } else {
-    bestModel       = 'ridge_joint'
-    selectionReason = 'Ridge joint selected as fallback (split model failed).'
   }
 
-  messages.push(...(diagJoint?.vifWarnings?.map(w => w.msg) ?? []))
+  // 2. Per-game four factors. Keep school/year alongside each row so the scatter
+  //    can aggregate to team-season (2,461 raw points would be unreadable).
+  const factored = (gameLogs ?? [])
+    .map(g => {
+      const f = computeGameFactors(g)
+      return f ? { ...f, school: g.school, year: g.year } : null
+    })
+    .filter(Boolean)
 
-  // 9. Observations for scatter plot from best model
-  const bestObservations = ridgeSplit.observations ?? valid.map((ts, i) => ({
-    label:     `${ts.school.charAt(0).toUpperCase() + ts.school.slice(1)} ${ts.year}`,
-    actual:    +yNet[i].toFixed(2),
-    predicted: +((ridgeJoint.beta ?? olsModel.beta ?? []).reduce(
-      (s, b, j) => s + b * XFull[i][j], 0
-    )).toFixed(2),
+  if (factored.length < 20) {
+    return { status: 'error', messages: [`Only ${factored.length} valid game rows after factor computation`] }
+  }
+
+  // 3. League rates for the EPA conversion denominator (FGA/100). Sourced from
+  //    team-season aggregates — eFG/FTR/FT%/ppp are encoding-neutral.
+  const leagueRates = computeLeagueRates(teamSeasons ?? [])
+
+  // 4. Fit a single joint ridge (net efficiency ~ 8 four-factor terms).
+  //    10-fold CV: LOO over thousands of rows would be far too slow.
+  const X = factored.map(r => [1, r.eFG_o, r.tov_o, r.orb_o, r.ftr_o, r.eFG_d, r.tov_d, r.orb_d, r.ftr_d])
+  const y = factored.map(r => r.netEff)
+
+  let model
+  try {
+    model = fitRidgeCV(X, y, ALL_FEATURES, { alphas: ALPHAS, cvFolds: 10 })
+  } catch (e) {
+    return { status: 'error', messages: [e.message] }
+  }
+
+  const coefficients = {
+    off_eFG: model.beta[1], off_TOV: model.beta[2],
+    off_ORB: model.beta[3], off_FTR: model.beta[4],
+    def_eFG: model.beta[5], def_TOV: model.beta[6],
+    def_ORB: model.beta[7], def_FTR: model.beta[8],
+  }
+  const conv       = convertToEventEPA(coefficients, leagueRates, baselineEP, { modelVariant: 'joint', encoding: 'textbook' })
+  const signIssues = checkSigns(model.beta, ALL_FEATURES)
+  const n          = factored.length
+
+  // 5. Diagnostics (VIF, correlation, CV-fold stability).
+  const diag = (() => {
+    try { return runDiagnostics(X, y, ALL_FEATURES, model.foldBetas) }
+    catch { return null }
+  })()
+  const vifWarn = diag?.vifWarnings ?? []
+
+  // 6. Scatter — aggregate per-game fit to team-season points (mean actual vs
+  //    mean predicted), e.g. "Illinois 2026".
+  const byTS = new Map()
+  factored.forEach((r, i) => {
+    const key = `${r.school} ${r.year}`
+    if (!byTS.has(key)) byTS.set(key, { label: `${cap(r.school)} ${r.year}`, actuals: [], preds: [] })
+    const o = byTS.get(key)
+    o.actuals.push(y[i])
+    o.preds.push(model.yHat[i])
+  })
+  const observations = [...byTS.values()].map(o => ({
+    label:     o.label,
+    actual:    +mean(o.actuals).toFixed(2),
+    predicted: +mean(o.preds).toFixed(2),
   }))
 
   return {
-    status: messages.some(m => m.includes('ERROR')) ? 'warning' : 'ok',
-    messages,
-    selectedModel: bestModel,
-    selectionReason,
-    n,                         // apply-set size (the conference apply-set)
-    nTrain,                    // training-set size (32 if no separate training, ~1400 for D1)
-    distinctTraining,          // true when fit was on a different corpus than apply
-    targetMode,
+    status:   'ok',
+    messages: [...(validation.warnings ?? []), ...vifWarn.map(w => w.msg)],
+    n,
+    label:    `Big Ten per-game box scores · n=${n} · 2022–2026`,
     leagueRates,
-    models: {
-      ols_joint:       olsModel,
-      ridge_joint:     ridgeJoint,
-      ridge_split:     ridgeSplit,
-      constrained_ols: constrainedOls,
-    },
+    coefficients,
+    selectedCoefficients: coefficients,
+    eventEPA:             conv.values,
+    selectedEventEPA:     conv.values,
+    states:               conv.states,
+    selectedStates:       conv.states,
+    convMeta:             conv.meta,
+    r2:        model.r2,
+    cvR2:      model.cvR2,
+    rmse:      model.rmse,
+    alpha:     model.bestAlpha,
+    signIssues,
+    observations,
     diagnostics: {
-      joint: diagJoint,
-      off:   diagOff,
-      def:   diagDef,
       n,
-      kJoint: ALL_FEATURES.length,
-      kSplit: OFF_FEATURES.length,
-      obsPerPredictorJoint: +(n / ALL_FEATURES.length).toFixed(1),
-      obsPerPredictorSplit: +(n / OFF_FEATURES.length).toFixed(1),
-      targetMode,
+      k:               ALL_FEATURES.length,
+      obsPerPredictor: +(n / ALL_FEATURES.length).toFixed(1),
+      vif:               diag?.vif ?? null,
+      vifWarnings:       vifWarn,
+      correlationMatrix: diag?.correlationMatrix ?? null,
+      stability:         diag?.stability ?? null,
     },
-    // EPA event values come from constrained OLS (theory-correct signs via NNLS).
-    // foulDrawn is overlaid from ridge split when NNLS zeros it — off_FTR has a correct positive
-    // sign in the split model and NNLS occasionally zeros it due to multicollinearity in the
-    // joint 8-predictor model with n=32.
-    selectedEventEPA: (() => {
-      const base = constrainedOls.eventEPA ?? olsModel.eventEPA
-      if (!base) return null
-      const epa = { ...base }
-      if (epa.foulDrawn === 0 && (ridgeSplit.eventEPA?.foulDrawn ?? 0) > 0)
-        epa.foulDrawn = ridgeSplit.eventEPA.foulDrawn
-      return epa
-    })(),
-    selectedStates:    constrainedOls.states   ?? null,
-    selectedCoefficients: (
-      bestModel === 'constrained_ols' ? namedCoeffs(constrainedOls.beta, ALL_FEATURES) :
-      bestModel === 'ridge_split'     ? ridgeSplit.coefficients :
-      namedCoeffs(ridgeJoint.beta, ALL_FEATURES)
-    ),
-    convMeta: (constrainedOls.convMeta ?? ridgeSplit.convMeta ?? ridgeJoint.convMeta ?? null),
-    observations: bestObservations,
   }
-}
-
-// Helper: turn beta array + feature names into named map
-function namedCoeffs(beta, featureNames) {
-  if (!beta) return null
-  const map = { intercept: beta[0] }
-  featureNames.forEach((name, i) => { map[name] = beta[i + 1] })
-  return map
 }

@@ -1,22 +1,14 @@
 import { create } from 'zustand'
 
-// tier1Result is keyed by targetMode because EpaLab fits the raw-PPP pipeline
-// (clean coefficients) while LuckLab fits the adjusted target (clean residuals).
-// Sharing a single slot was incorrect — whoever ran first wrote the wrong data
-// for the other consumer.
+// A single EPA model (four-factor ridge on Big Ten per-game box scores) is
+// cached here so it survives navigation and isn't refit on every render.
 const useEpaStore = create((set) => ({
-  tier1Result:       { raw: null, adjusted: null },
-  tier2Result:       null,
+  epaResult:         null,
   error:             null,
-  confOnly:          false,
-  activeComparison:  'events',   // 'events' | 'coefficients' | 'scatter'
+  activeComparison:  'events',   // 'events' | 'coefficients' | 'scatter' | 'state'
 
-  setConfOnly:         (val)    => set({ confOnly: val }),
+  setEpaResult:        (result) => set({ epaResult: result }),
   setActiveComparison: (val)    => set({ activeComparison: val }),
-  setTier1Result:      (result, mode = 'raw') => set(s => ({
-    tier1Result: { ...s.tier1Result, [mode]: result }
-  })),
-  setTier2Result:      (result) => set({ tier2Result: result }),
   setError:            (msg)    => set({ error: msg }),
 }))
 
