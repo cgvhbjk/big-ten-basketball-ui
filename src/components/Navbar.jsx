@@ -79,7 +79,7 @@ export default function Navbar() {
         style={{ fontSize: 11, color: T.textMin, flexShrink: 0, whiteSpace: 'nowrap' }}
         className="bt-hide-phone"
       >
-        2022–2025 · Big Ten
+        2022–2026 · Big Ten
       </span>
     </nav>
   )

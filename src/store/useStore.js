@@ -10,8 +10,8 @@ import { create } from 'zustand'
 const useStore = create((set) => ({
   analyzerTeamA: 'illinois',
   analyzerTeamB: 'purdue',
-  analyzerYearA: 2025,
-  analyzerYearB: 2025,
+  analyzerYearA: 2026,
+  analyzerYearB: 2026,
 
   setAnalyzerTeamA: (v) => set({ analyzerTeamA: v }),
   setAnalyzerTeamB: (v) => set({ analyzerTeamB: v }),

@@ -180,7 +180,7 @@ function _withinYearDemean(rows, xKey, yKey) {
 }
 
 export function computeRelationship(teamSeasons, xKey, yKey, filters = {}) {
-  const { yearRange = [2022, 2025], withCI = true, controlForYear = false } = filters
+  const { yearRange = [2022, 2026], withCI = true, controlForYear = false } = filters
   const baseRows = teamSeasons.filter(s => {
     if (s.year < yearRange[0] || s.year > yearRange[1]) return false
     if (s[xKey] == null || s[yKey] == null) return false
@@ -241,7 +241,7 @@ export function scoreInsight(correlation, n, opts = {}) {
 export function timeWindowComparison(teamSeasons, xKey, yKey) {
   const windows = [
     { label: '2022–23', years: [2022, 2023] },
-    { label: '2024–25', years: [2024, 2025] },
+    { label: '2024–26', years: [2024, 2025, 2026] },
   ]
   return windows.map(w => {
     const rows = teamSeasons.filter(s =>
@@ -287,7 +287,7 @@ function _bestSplitEffect(sortedRows) {
 // shuffled effect exceeds the observed. If p > pMax, return null — the
 // "threshold" is indistinguishable from chance.
 export function detectThreshold(
-  teamSeasons, xKey, yKey, yearRange = [2022, 2025],
+  teamSeasons, xKey, yKey, yearRange = [2022, 2026],
   { pMax = 0.05, B = 5000, seed = 17 } = {}
 ) {
   const rows = teamSeasons

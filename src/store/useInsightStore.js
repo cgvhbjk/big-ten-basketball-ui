@@ -6,7 +6,7 @@ const useInsightStore = create((set) => ({
   xVar: 'efg_o',
   yVar: 'win_pct',
   schemeFilter: 'all',
-  yearRange: [2022, 2025],
+  yearRange: [2022, 2026],
 
   setXVar:        (v) => set({ xVar: v }),
   setYVar:        (v) => set({ yVar: v }),

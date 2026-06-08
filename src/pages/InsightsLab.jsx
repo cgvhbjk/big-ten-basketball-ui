@@ -609,7 +609,7 @@ function SchemeCombinedCard({ school, years }) {
 function SchemeClassifierPanel() {
   const { saveScheme } = useInsightStore()
   const [school,       setSchool]       = useState('michigan')
-  const [activeYears,  setActiveYears]  = useState(new Set([2022, 2023, 2024, 2025]))
+  const [activeYears,  setActiveYears]  = useState(new Set([2022, 2023, 2024, 2025, 2026]))
 
   function toggleYear(y) {
     setActiveYears(prev => {
@@ -1088,7 +1088,7 @@ function RosterBioPanel() {
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.accentSoft }}>Physical Differentials → Game Outcomes</div>
           <div style={{ fontSize: 11, color: T.textLow, marginTop: 2 }}>
-            Game-level position physical differentials · {matchupRel.n} conference matchups · 2022–2025
+            Game-level position physical differentials · {matchupRel.n} conference matchups · 2022–2026
           </div>
         </div>
 
@@ -1283,7 +1283,7 @@ function ScanPanel() {
       const SCAN_B = 1000
       const rows = candidates.map(m => {
         const r = localCache('computeRelationship',
-          `${m.key}|${yKey}|2022,2025|cy=false`,
+          `${m.key}|${yKey}|2022,2026|cy=false`,
           () => computeRelationship(enrichedSeasons, m.key, yKey, { withCI: true }))
         return {
           xKey: m.key,
@@ -1403,7 +1403,7 @@ export default function InsightsLab({ embedded = false }) {
     <div style={{ background: T.bg, minHeight: '100vh' }}>
       <PageHeader
         title={embedded ? null : 'Insights Lab'}
-        subtitle={`${teamSeasons.length} team-seasons · ${players.length} player-seasons · ${games.filter(g => g.conf_game).length} conference games · ${ALL_METRICS_FLAT.length} metrics · 2022–2025`}
+        subtitle={`${teamSeasons.length} team-seasons · ${players.length} player-seasons · ${games.filter(g => g.conf_game).length} conference games · ${ALL_METRICS_FLAT.length} metrics · 2022–2026`}
         stats={[]}
         tabs={TABS.map(([v, lbl]) => ({ value: v, label: lbl }))}
         activeTab={tab}

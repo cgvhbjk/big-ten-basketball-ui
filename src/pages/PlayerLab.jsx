@@ -548,7 +548,7 @@ export default function PlayerLab() {
 
   const headerSubtitle = tab === 'training' && player
     ? `${SCHOOL_META[selectedSchool].fullName} · ${selectedYear} · ${player.pos_type} · ${broadPositionGroup(player.pos_type)}`
-    : 'Big Ten Basketball · 2022–2025'
+    : 'Big Ten Basketball · 2022–2026'
 
   const headerStats = []
 
@@ -797,7 +797,7 @@ export default function PlayerLab() {
             ))}
             <span style={{ fontSize: 12, color: T.textMin, marginLeft: 4 }}>
               · Playing-time weighted averages · min 8 min/g
-              {posYear === 0 && <span style={{ color: T.amber }}> · aggregated 2022–2025</span>}
+              {posYear === 0 && <span style={{ color: T.amber }}> · aggregated 2022–2026</span>}
             </span>
           </div>
 
@@ -825,7 +825,7 @@ export default function PlayerLab() {
             <div style={{ fontSize: 13, fontWeight: 600, color: '#a5b4fc', marginBottom: 4 }}>
               Offensive Rating &amp; Scoring by {POS_GROUP_LABEL[posGroup].by}
               <span style={{ fontSize: 11, fontWeight: 400, color: T.textLow, marginLeft: 8 }}>
-                {posYear === 0 ? 'All Years 2022–2025' : posYear}
+                {posYear === 0 ? 'All Years 2022–2026' : posYear}
               </span>
             </div>
             <div style={{ fontSize: 11, color: '#4b5563', marginBottom: 16 }}>
@@ -1189,7 +1189,7 @@ export default function PlayerLab() {
           return [
             {
               label: 'Most Efficient',
-              text: `${byOrtg[0].pos} leads the Big Ten ${posYear === 0 ? '(2022–2025 avg)' : posYear} in offensive rating (${byOrtg[0].ortg} ORTG, n=${byOrtg[0].n} players). ${byOrtg[byOrtg.length - 1].pos} posts the lowest at ${byOrtg[byOrtg.length - 1].ortg}.`,
+              text: `${byOrtg[0].pos} leads the Big Ten ${posYear === 0 ? '(2022–2026 avg)' : posYear} in offensive rating (${byOrtg[0].ortg} ORTG, n=${byOrtg[0].n} players). ${byOrtg[byOrtg.length - 1].pos} posts the lowest at ${byOrtg[byOrtg.length - 1].ortg}.`,
               color: T.accentSoft,
             },
             {
@@ -1208,7 +1208,7 @@ export default function PlayerLab() {
               const eFGSpread = (Math.max(...posBiodata.map(g => g.efg)) - Math.min(...posBiodata.map(g => g.efg))).toFixed(1)
               return {
                 label: 'Roster Depth',
-                text: `${totalN} qualifying players across ${posBiodata.length} ${POS_GROUP_LABEL[posGroup].plural}${posYear === 0 ? ' (2022–2025)' : ` in ${posYear}`}. ${largest.pos} is the deepest group (n=${largest.n}). eFG% spread across ${POS_GROUP_LABEL[posGroup].plural}: ${eFGSpread}pp — ${parseFloat(eFGSpread) >= 5 ? 'a meaningful efficiency gap suggesting a shooting imbalance' : 'relatively balanced shooting efficiency'}.`,
+                text: `${totalN} qualifying players across ${posBiodata.length} ${POS_GROUP_LABEL[posGroup].plural}${posYear === 0 ? ' (2022–2026)' : ` in ${posYear}`}. ${largest.pos} is the deepest group (n=${largest.n}). eFG% spread across ${POS_GROUP_LABEL[posGroup].plural}: ${eFGSpread}pp — ${parseFloat(eFGSpread) >= 5 ? 'a meaningful efficiency gap suggesting a shooting imbalance' : 'relatively balanced shooting efficiency'}.`,
                 color: T.textMd,
               }
             })(),
