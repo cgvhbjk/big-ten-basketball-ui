@@ -23,7 +23,7 @@ const __dir   = dirname(fileURLToPath(import.meta.url))
 const OUT_DIR = join(__dir, '../src/data')
 mkdirSync(OUT_DIR, { recursive: true })
 
-const YEARS = [2022, 2023, 2024, 2025]
+const YEARS = [2022, 2023, 2024, 2025, 2026]
 
 async function fetchJson(url) {
   console.log(`  GET ${url}`)

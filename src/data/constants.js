@@ -45,7 +45,7 @@ export const SCHOOL_COLORS = Object.fromEntries(
 )
 
 // Years with real data from Barttorvik
-export const YEARS = [2022, 2023, 2024, 2025]
+export const YEARS = [2022, 2023, 2024, 2025, 2026]
 
 // ---- Team metric definitions ----
 // Groups are ordered top-to-bottom by how directly they answer "how good is this team?"

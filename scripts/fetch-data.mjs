@@ -31,8 +31,8 @@ mkdirSync(OUT_DIR, { recursive: true })
 // response — Barttorvik uses short codes (B10, B12, ACC, SEC, …).
 const CONF = 'B10'
 
-// Seasons to fetch — 2022 through 2025 (matches src/data/constants.js YEARS).
-const YEARS = [2022, 2023, 2024, 2025]
+// Seasons to fetch — 2022 through 2026 (matches src/data/constants.js YEARS).
+const YEARS = [2022, 2023, 2024, 2025, 2026]
 
 // ---------- helpers ----------
 
