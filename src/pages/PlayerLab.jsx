@@ -112,6 +112,13 @@ const POS_GROUP_LABEL = {
 
 const PRIORITY_COLORS = { Critical: '#ef4444', High: '#f97316', Medium: '#f59e0b', Maintenance: '#10b981' }
 
+// Small numbered chip for the Training Plan's onboarding steps.
+const STEP_BADGE = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: 18, height: 18, borderRadius: 999, background: T.surf2,
+  color: T.textMd, fontSize: 10, fontWeight: 700, flexShrink: 0,
+}
+
 // higherBetter: true = higher wins, false = lower wins, null = neutral (no color coding)
 // or_pct/ast_pct intentionally absent — see constants.js note about wrong scale.
 const STAT_HB = {
@@ -465,6 +472,31 @@ export default function PlayerLab() {
 
   // S&C training plan — re-prioritised dynamically if combine inputs are entered
   const trainingPlan = useMemo(() => generateTrainingPlan(player, combineInputs), [player, combineInputs])
+
+  // Has the user entered (or example-loaded) any combine measurement yet? Drives
+  // the Training Plan empty state — the dense gap/comparables/S&C output stays
+  // hidden until there's something to analyse.
+  const hasCombineInputs = useMemo(
+    () => Object.values(combineInputs).some(v => v !== '' && v != null),
+    [combineInputs],
+  )
+
+  // "Load example" — fill the selected player's position metrics with plausible
+  // sample values (40% into each combine target range) so a first-time user
+  // immediately sees a populated, gap-prioritised plan. Pure framing helper; it
+  // feeds the same combineInputs the manual fields write to.
+  const loadExampleMeasurements = useCallback(() => {
+    const pos = broadPositionGroup(player?.pos_type)
+    const targets = NBA_COMBINE_TARGETS[pos] ?? []
+    const sample = {}
+    targets.forEach(t => {
+      if (t.numericMin != null && t.numericMax != null) {
+        const v = t.numericMin + 0.4 * (t.numericMax - t.numericMin)
+        sample[t.key] = String(Math.round(v * 10) / 10)
+      }
+    })
+    setCombineInputs(sample)
+  }, [player])
 
   // NBA prospect comparisons
   const nbaComparables = useMemo(() =>
@@ -823,6 +855,43 @@ export default function PlayerLab() {
         <div>
           {player ? (
             <div>
+              {/* Onboarding intro + primary first action */}
+              <div style={{ ...CARD, marginBottom: 20 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 6 }}>
+                  Build a development plan
+                </div>
+                <div style={{ fontSize: 13, color: T.textMd, lineHeight: 1.6, marginBottom: 16, maxWidth: 760 }}>
+                  Enter a player's combine-style measurements and we'll compare them against
+                  position-specific NBA target ranges, flag the biggest gaps, and suggest a
+                  training focus.
+                </div>
+                <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.textLow }}>
+                    <span style={STEP_BADGE}>1</span>
+                    Pick a player above — sets the position ({broadPositionGroup(player.pos_type) ?? '—'})
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.textLow }}>
+                    <span style={STEP_BADGE}>2</span>
+                    Enter measurements in the assessment below
+                  </div>
+                </div>
+                {!hasCombineInputs ? (
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button onClick={loadExampleMeasurements}
+                      style={{ ...BTN(true), padding: '8px 16px', fontSize: 13 }}>
+                      Load example
+                    </button>
+                    <span style={{ fontSize: 12, color: T.textMin }}>
+                      New here? Load a sample set to see a finished plan, then clear it and enter your own.
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: T.green }}>
+                    ✓ Measurements entered — your gap analysis and training plan are below.
+                  </div>
+                )}
+              </div>
+
               {/* Player header */}
               <div style={{ ...CARD, marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -913,8 +982,9 @@ export default function PlayerLab() {
                       </div>
                     </div>
 
-                    {/* College production vs comparable draftees */}
-                    {nbaBenchmarks && (
+                    {/* College production vs comparable draftees — part of the dense
+                        output, so it waits until measurements have been entered. */}
+                    {hasInputs && nbaBenchmarks && (
                       <Accordion title="College Production vs Drafted Comparables" badge={`n=${nbaBenchmarks.n} draftees · ${nbaBenchmarks.draftYearMin}–${nbaBenchmarks.draftYearMax}`}>
                         <div className="bt-grid bt-grid--4" style={{ gap: 10, marginBottom: 14 }}>
                           {[
@@ -979,7 +1049,9 @@ export default function PlayerLab() {
                 )
               })()}
 
-              {/* S&C Training Program */}
+              {/* S&C Training Program — dense output; only shown once there are
+                  measurements to prioritise against (Load example fills these). */}
+              {hasCombineInputs && (<>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: T.accentSoft }}>
                   S&amp;C Program — {broadPositionGroup(player.pos_type)}
@@ -1043,6 +1115,7 @@ export default function PlayerLab() {
                   })}
                 </div>
               )}
+              </>)}
             </div>
           ) : (
             <div style={{ fontSize: 13, color: T.textMin }}>Select a player above to view their training plan.</div>
@@ -1143,7 +1216,7 @@ export default function PlayerLab() {
         })()} />
       )}
 
-      {tab === 'training' && player && (
+      {tab === 'training' && player && hasCombineInputs && (
         <PageConclusions title="Training Plan Takeaways" conclusions={(() => {
           if (!trainingPlan.length) return []
           const critical = trainingPlan.filter(r => (r.effectivePriority ?? r.priority) === 'Critical')
