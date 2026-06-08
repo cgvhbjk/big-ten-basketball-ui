@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import teamSeasons from '../data/teamSeasons.json'
 import players from '../data/players.json'
-import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, TEAM_METRICS } from '../data/constants.js'
+import { SCHOOLS, SCHOOL_META, YEARS, TEAM_METRICS } from '../data/constants.js'
 import { markStroke, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import useInsightStore from '../store/useInsightStore.js'
 import GlossaryTooltip from '../components/shared/GlossaryTooltip.jsx'

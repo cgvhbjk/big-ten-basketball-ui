@@ -7,7 +7,7 @@ import {
 import players from '../data/players.json'
 import nbaCombine from '../data/nbaCombine.json'
 import { NBA_COMBINE_META } from '../data/nbaCombineMeta.js'
-import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, PLAYER_METRICS } from '../data/constants.js'
+import { SCHOOLS, SCHOOL_META, YEARS, PLAYER_METRICS } from '../data/constants.js'
 import { getCoach } from '../data/coachMeta.js'
 import { radarDot, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import usePlayerStore from '../store/usePlayerStore.js'

@@ -4,7 +4,7 @@ import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tool
 import teamSeasons from '../data/teamSeasons.json'
 import players from '../data/players.json'
 import games from '../data/games.json'
-import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, TEAM_METRIC_MAP } from '../data/constants.js'
+import { SCHOOLS, SCHOOL_META, YEARS, TEAM_METRIC_MAP } from '../data/constants.js'
 import { radarDot, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import useStore from '../store/useStore.js'
 import usePlayerStore from '../store/usePlayerStore.js'
