@@ -30,8 +30,12 @@ function assert(condition, name, detail = '') {
 console.log('\n[1] Data validation')
 
 const v1 = validateTeamSeasons(teamSeasons, 'raw')
+// The valid-row count grows as seasons are added (and tracks the 14→18 team
+// expansion), so derive it from validation rather than hardcoding. The invariant
+// that matters is that the pipeline/rates below consume exactly this many rows.
+const EXPECTED_VALID = v1.validCount
 assert(v1.ok,             'raw mode validates successfully')
-assert(v1.validCount === 32, '32 valid team-seasons', `got ${v1.validCount}`)
+assert(EXPECTED_VALID > 0, `validation counts team-seasons (got ${EXPECTED_VALID})`)
 assert(v1.errors.length === 0, 'no errors in valid data')
 
 const v2 = validateTeamSeasons(teamSeasons, 'adjusted')
@@ -84,7 +88,7 @@ if (!mc.error) {
 console.log('\n[6] Cross-validation data integrity')
 const r = runEPAPipeline(teamSeasons, { targetMode: 'raw' })
 assert(r.status !== 'error', 'pipeline runs without error')
-assert(r.n === 32, `pipeline uses all 32 observations, got ${r.n}`)
+assert(r.n === EXPECTED_VALID, `pipeline uses all ${EXPECTED_VALID} observations, got ${r.n}`)
 const ridgeSplit = r.models.ridge_split
 assert(ridgeSplit && !ridgeSplit.error, 'ridge_split model fits successfully')
 assert(ridgeSplit.offCvR2 > 0 && ridgeSplit.offCvR2 <= 1, `off CVR² in range: ${ridgeSplit.offCvR2}`)
@@ -95,7 +99,7 @@ console.log('\n[7] EPA conversion denominator')
 const rates = computeLeagueRates(teamSeasons)
 assert(rates.avgFGAp100 > 80 && rates.avgFGAp100 < 100,
   `avgFGAp100 is ~88 (not 48), got ${rates.avgFGAp100}`)
-assert(rates.n === 32, `computed from all 32 seasons, got ${rates.n}`)
+assert(rates.n === EXPECTED_VALID, `computed from all ${EXPECTED_VALID} seasons, got ${rates.n}`)
 
 // Test conversion output shape
 const mockCoeffs = { off_eFG: 1.3, off_TOV: -0.5, off_ORB: 0.4, off_FTR: 0.2,

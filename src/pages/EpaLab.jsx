@@ -107,7 +107,7 @@ function CoeffTable({ coefficients }) {
         β_eFG of 1.2 means a 1% increase in eFG% adds 1.2 pts of net efficiency per 100 possessions.
         Signs for all eight factors are empirically verified (see <code>encodingAudit.js</code> + EPA_MODELS.md).
         Rows shaded amber have <strong style={{ color: T.amber }}>unstable magnitudes at n=32</strong> due to multicollinearity with eFG% — not unreliable signs.
-        A real per-game box-score dataset would tighten these; today's Tier 2 panel uses synthetic data and is hidden by default.
+        The Tier 2 panel now runs on real per-game box scores (ESPN, 2022–2026), which tightens these estimates.
       </p>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
@@ -501,7 +501,7 @@ export default function EpaLab({ embedded = false }) {
           { label: 'What EPA measures', color: T.accentSoft, text: 'EPA (Expected Points Added) converts regression coefficients from the Dean Oliver four-factor model into intuitive per-event values. A made 2-pt FG adds ~2.36 pts of net efficiency per 100 possessions. These are not assumed weights — they are estimated from Big Ten game data.' },
           { label: 'Why TOV/ORB are omitted in conference-only Tier 1', color: T.amber, text: 'With only the small conference-only team-season sample, TOV% and ORB% are sufficiently correlated with eFG% that all models — including unconstrained ridge — produce wrong-signed coefficients for those two factors. The constrained model correctly zeroes them. The D1-trained row in the Model Selection panel (open it for details) fits on n≈1400 and recovers stable, non-zero TOV/ORB estimates, demonstrating the constraint is a small-sample artifact rather than a structural fact.' },
           { label: 'Model selection logic', color: T.blue, text: 'Four models are fit: OLS, Ridge joint, Ridge split (offense/defense separate), and Constrained OLS (NNLS with theory-correct sign constraints). The pipeline auto-selects by LOO-CV R² and sign validity. EPA event values always come from the constrained model to ensure correct sign direction.' },
-          { label: 'Tier 1 vs Tier 2 (when populated)', color: T.green, text: 'Tier 1 uses season-aggregate four-factor data (Barttorvik, 2022–25). Tier 2 is intended for per-game box scores from the ESPN API for the same schools and seasons. Real Tier 2 data would have ~28× more observations, better isolate game-level variance, and stabilise TOV/ORB estimates. Today\'s Tier 2 panel is fed by synthetic data and its numbers are suppressed by default.' },
+          { label: 'Tier 1 vs Tier 2', color: T.green, text: 'Tier 1 uses season-aggregate four-factor data (Barttorvik, 2022–2026). Tier 2 uses per-game box scores from the ESPN API for the same schools and seasons — ~28× more observations than Tier 1, which better isolates game-level variance and stabilises TOV/ORB estimates. The Tier 2 panel is now populated with real box scores (no longer synthetic).' },
         ]} />
 
         {pipeline.status !== 'error' && (

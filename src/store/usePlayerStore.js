@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 const usePlayerStore = create((set) => ({
-  selectedSchool: 'michigan',
+  selectedSchool: 'illinois',
   selectedYear: 2026,
   selectedPlayer: null,
   compareSchool: 'purdue',
