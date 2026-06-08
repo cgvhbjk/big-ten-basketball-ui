@@ -35,7 +35,7 @@ src/utils/epaModels/
 
 | Problem | Old | New |
 |---|---|---|
-| Too many predictors | 8 predictors on 32 obs (ratio 4:1) | Split models: 4 predictors each (ratio 8:1) |
+| Too many predictors | 8 predictors fit jointly | Split models: 4 predictors each (halves the predictor load per fit) |
 | Coefficient instability | Plain OLS | Ridge with LOO-CV alpha selection |
 | Sign flips | Undetected | Checked against `SIGN_CONSTRAINTS`; constrained model selected when signs are wrong |
 | Adjusted/raw mismatch | Silent | Validated + warning logged; default is `targetMode: 'raw'` |
@@ -55,7 +55,7 @@ The pipeline fits four models and selects in this priority order:
 3. **Ridge joint** — fallback  
 4. **OLS joint** — baseline only, never selected
 
-Current default output: **Constrained OLS** (sign issues in `tov_o`, `orb`, `tov_d`, `drb` suggest Barttorvik field encoding is non-standard for those four columns).
+Current default output: **Ridge split**. On the refreshed 2022–2026 data (n=78 conference team-seasons) all eight coefficient signs come back correct, so the ridge-split model is selected and the sign-enforced constrained model is not needed as the default — it remains the fallback if a future data refresh flips a sign. (The `tov_o` / `orb` columns still use Barttorvik's non-standard encoding direction; that's captured in the sign constraints, not a defect.)
 
 ---
 
@@ -63,25 +63,27 @@ Current default output: **Constrained OLS** (sign issues in `tov_o`, `orb`, `tov
 
 The directional encoding of four columns from Barttorvik's slice JSON was historically ambiguous. The Phase-0 audit (`src/utils/epaModels/encodingAudit.js`) resolves this empirically — it fits a four-factor OLS on the the conference team-seasons and reports the partial coefficient signs. The unit test at `src/utils/epaModels/__tests__/encodingAudit.test.js` locks these signs in CI.
 
-### Empirical regression (small n, standardized X)
+### Empirical regression (n=78 conference team-seasons, standardized X)
+
+_Figures below were refreshed on the 2022–2026 data (76 of 78 team-seasons have complete four-factor rows; D1 training set n=1,812). Magnitudes shift slightly with each data refresh; the **signs** are what the constraints lock._
 
 **Offense → ppp** (R²=0.96):
 
 | Field | β   | Sign | Note |
 |---|----:|:---:|---|
-| `efg_o` | +4.36 | + | Standard convention; matches textbook. |
-| `tov_o` | +0.55 | **+** | Opposite of textbook — likely a percentile-rank-where-higher-is-better encoding (high `tov_o` ⇒ low actual TOV%). |
-| `orb`   | −2.63 | **−** | Opposite of textbook — encoding is opposite-direction to standard ORB%. |
-| `ftr_o` | +0.99 | + | Standard. |
+| `efg_o` | +3.99 | + | Standard convention; matches textbook. |
+| `tov_o` | +0.66 | **+** | Opposite of textbook — likely a percentile-rank-where-higher-is-better encoding (high `tov_o` ⇒ low actual TOV%). |
+| `orb`   | −2.73 | **−** | Opposite of textbook — encoding is opposite-direction to standard ORB%. |
+| `ftr_o` | +2.74 | + | Standard. |
 
-**Defense → opp_ppp** (R²=0.87):
+**Defense → opp_ppp** (R²=0.95):
 
 | Field | β   | Sign | Note |
 |---|----:|:---:|---|
-| `efg_d` | +2.83 | + | Standard. |
-| `tov_d` | +0.07 | + | **Low confidence** — magnitude effectively zero at small n. Audit warns; bivariate sign is weakly negative, partial sign is weakly positive. We retain the audit's positive sign for the constraint but expect this is the noisiest of the four. |
-| `drb`   | −2.42 | − | Standard — own DRB% reduces opp scoring. |
-| `ftr_d` | +1.95 | + | Standard. |
+| `efg_d` | +3.40 | + | Standard. |
+| `tov_d` | +0.94 | + | Positive and stable on the larger sample — the audit no longer flags it (it was effectively zero / low-confidence at the old n≈32–60). Still the smallest defensive coefficient. |
+| `drb`   | −2.82 | − | Standard — own DRB% reduces opp scoring. |
+| `ftr_d` | +1.79 | + | Standard. |
 
 ### What the locked signs mean for the pipeline
 
@@ -97,7 +99,7 @@ Three signs differ from textbook convention: `off_TOV: +1` (was −1), `off_ORB:
 
 ### Why we still need the modeling complexity
 
-Phase 0 originally hypothesized that fixing the encoding would let us retire `constrained_ols` and the dual-variant logic in `convertToEventEPA`. That partly held: the **sign ambiguity is gone** (we now know what every coefficient should look like). But the small-sample multicollinearity remains — at small n, ridge-split still produces `def_TOV` coefficients near zero, and the joint model still benefits from sign enforcement to keep TOV/ORB from getting absorbed by `eFG`. The constrained model and the model-comparison logic stay; only the "we don't know which way is up" hedging in copy/docs goes away.
+Phase 0 originally hypothesized that fixing the encoding would let us retire `constrained_ols` and the dual-variant logic in `convertToEventEPA`. On the refreshed 2022–2026 data that largely holds: the **sign ambiguity is gone**, and at n=78 ridge-split returns all eight signs correctly (including a clean, stable positive `def_TOV`), so ridge-split is now the selected model. The constrained model and the model-comparison logic stay as a **safety net** — if a future refresh flips a sign, the pipeline falls back to the sign-enforced fit automatically — but day-to-day output no longer depends on it.
 
 **Recommendation for future data refreshes**: run `npm test` after refreshing `teamSeasons.json`. If the encoding audit fails, the refresh introduced an encoding flip — investigate before merging.
 
@@ -149,7 +151,7 @@ The `synthetic` flag will clear automatically once real data is present (detecti
 
 ## What would most improve the model
 
-1. **More seasons** — pull 5+ years of all D1 data for coefficient stability, then apply to the conference
-2. **Clarify field encoding** — confirm direction of `tov_o`, `orb`, `tov_d`, `drb` in Barttorvik
+1. **More seasons** — the D1 training set now spans 2022–2026 (n=1,812); extending further back would add coefficient stability
+2. **Monitor field encoding** — the Phase-0 audit locks the four non-standard signs (`tov_o`, `orb`, `tov_d`, `drb`) in CI; re-confirm only if a refresh trips the audit test
 3. **Real game-log data** — Tier 2 is currently synthetic; per-game box scores unlock possession-level analysis
 4. **Possession-level data** — each possession is one observation; thousands of rows make all models stable

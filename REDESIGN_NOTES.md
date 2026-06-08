@@ -5,6 +5,15 @@ any metric, category, or view. This was a **presentation-layer** refactor; no
 data sources, calculations, or pipeline logic were touched (all 91 unit tests
 still pass).
 
+> **Later updates (June 2026).** This file documents the original simplification
+> pass; the counts below (60 team-seasons, 777 players, 1,948 games, n=60, 91
+> tests) describe that snapshot. Since then the app added the **2026 (2025–26)
+> season** and several features — Illinois as the default team, metric `ⓘ`
+> tooltips, a dark-team-color contrast fix, a Positions **Group by** school/coach
+> selector, and a Training Plan onboarding/empty state. The bundled data now
+> spans **2022–2026** (78 team-seasons, 1,009 players, 2,476 games) and the suite
+> is **107 tests**. See `README.md` for current features.
+
 ## Summary of impact
 
 | Area | Before | After |
@@ -111,7 +120,7 @@ Fixes applied:
 
 ```bash
 npm run dev     # http://localhost:5174
-npm test        # 91 passing
+npm test        # 107 passing
 npm run build   # clean
 ```
 
