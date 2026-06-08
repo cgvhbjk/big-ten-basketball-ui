@@ -7,6 +7,7 @@ import {
 import teamSeasons from '../data/teamSeasons.json'
 import players from '../data/players.json'
 import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, TEAM_METRICS } from '../data/constants.js'
+import { markStroke, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import useInsightStore from '../store/useInsightStore.js'
 import GlossaryTooltip from '../components/shared/GlossaryTooltip.jsx'
 import PageHeader from '../components/shared/PageHeader.jsx'
@@ -56,10 +57,14 @@ const STYLE_KEYS = [
 ]
 
 function CustomDot({ cx, cy, payload }) {
+  const fill = payload?.fill ?? '#6366f1'
+  // Light ring for dark team colors so they don't vanish on the dark grid;
+  // subtle near-black ring for light colors (the original behavior).
+  const { stroke, strokeWidth } = markStroke(fill)
   return (
     <circle cx={cx} cy={cy} r={5}
-      fill={payload?.fill ?? '#6366f1'} fillOpacity={0.85}
-      stroke="#0e0e0e" strokeWidth={1} />
+      fill={fill} fillOpacity={0.85}
+      stroke={stroke} strokeWidth={strokeWidth} />
   )
 }
 
@@ -105,7 +110,7 @@ function CorrelationPanel() {
   , [xMeta, yMeta, correlation, n, threshold])
 
   const coloredPoints = useMemo(() =>
-    points.map(p => ({ ...p, fill: SCHOOL_COLORS[p.school] ?? '#6366f1' }))
+    points.map(p => ({ ...p, fill: resolveTeamColor(p.school) }))
   , [points])
 
   const regressionLine = useMemo(() => {
@@ -248,7 +253,7 @@ function CorrelationPanel() {
                 if (!d.school) return null
                 return (
                   <div style={{ background: '#1a1a1a', border: '1px solid #2c2c2c', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-                    <div style={{ color: SCHOOL_COLORS[d.school], fontWeight: 600 }}>
+                    <div style={{ color: resolveTeamColor(d.school), fontWeight: 600, textShadow: textHaloShadow(resolveTeamColor(d.school)) }}>
                       {SCHOOL_META[d.school]?.fullName} {d.year}
                     </div>
                     <div style={{ color: '#9ca3af' }}>{xMeta?.label}: {xMeta?.fmt ? xMeta.fmt(d.x) : d.x?.toFixed(2)}</div>
@@ -466,7 +471,7 @@ function SchemeHalf({ title, schemeType, metrics, defaultMetric, colors, descrip
 // Single combined card — averages stats across all selected years, shows coach, and
 // puts a compact year-by-year history at the bottom when multiple years are active.
 function SchemeCombinedCard({ school, years }) {
-  const color = SCHOOL_COLORS[school]
+  const color = resolveTeamColor(school)
 
   // Per-year data (memoised once)
   const yearData = useMemo(() => years.map(y => {
@@ -615,7 +620,7 @@ function SchemeClassifierPanel() {
     })
   }
 
-  const color = SCHOOL_COLORS[school]
+  const color = resolveTeamColor(school)
   const sortedYears = YEARS.filter(y => activeYears.has(y))
 
   return (
@@ -690,7 +695,7 @@ function SavedSchemes() {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {savedSchemes.map(item => {
-          const color = SCHOOL_COLORS[item.school]
+          const color = resolveTeamColor(item.school)
           return (
             <div key={item.id} style={{ background: T.surf, border: `1px solid ${T.border}`, borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
@@ -999,7 +1004,7 @@ const EXTENDED_METRIC_GROUPS = [
 ]
 
 function ScatterBlock({ points, regressionLine, correlation, n, confidence, xLabel, yLabel, tooltipExtra }) {
-  const coloredPoints = points.map(p => ({ ...p, fill: SCHOOL_COLORS[p.school] ?? '#6366f1' }))
+  const coloredPoints = points.map(p => ({ ...p, fill: resolveTeamColor(p.school) }))
   const { valid, reason } = scoreInsight(correlation, n)
   return (
     <div style={CARD}>
@@ -1024,7 +1029,7 @@ function ScatterBlock({ points, regressionLine, correlation, n, confidence, xLab
             if (!d.school) return null
             return (
               <div style={{ background: '#1a1a1a', border: '1px solid #2c2c2c', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
-                <div style={{ color: SCHOOL_COLORS[d.school], fontWeight: 600 }}>
+                <div style={{ color: resolveTeamColor(d.school), fontWeight: 600, textShadow: textHaloShadow(resolveTeamColor(d.school)) }}>
                   {d.name ?? SCHOOL_META[d.school]?.fullName} {d.year}
                 </div>
                 {tooltipExtra && tooltipExtra(d)}

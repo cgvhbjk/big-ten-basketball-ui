@@ -5,6 +5,7 @@ import teamSeasons from '../data/teamSeasons.json'
 import players from '../data/players.json'
 import games from '../data/games.json'
 import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, TEAM_METRIC_MAP } from '../data/constants.js'
+import { radarDot, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import useStore from '../store/useStore.js'
 import usePlayerStore from '../store/usePlayerStore.js'
 import TeamBadge from '../components/shared/TeamBadge.jsx'
@@ -119,6 +120,7 @@ function CompareRow({ label, a, b, colorA, colorB, higherBetter, fmt, info }) {
       display: 'inline-flex', alignItems: 'baseline', gap: 5,
       fontSize: 20, fontWeight: isWin ? 800 : 600,
       color: isWin ? color : T.textMd, fontVariantNumeric: 'tabular-nums',
+      textShadow: isWin ? textHaloShadow(color) : 'none',
     }}>
       {isWin && <span aria-hidden="true" style={{ fontSize: 10, color }}>▲</span>}
       {str}
@@ -245,8 +247,8 @@ export default function MatchupAnalyzer({ embedded = false }) {
     navigate('/players', { state: { from: 'matchup' } })
   }
 
-  const colorA = SCHOOL_COLORS[analyzerTeamA]
-  const colorB = SCHOOL_COLORS[analyzerTeamB]
+  const colorA = resolveTeamColor(analyzerTeamA)
+  const colorB = resolveTeamColor(analyzerTeamB)
   const metaA  = SCHOOL_META[analyzerTeamA]
   const metaB  = SCHOOL_META[analyzerTeamB]
 
@@ -530,7 +532,7 @@ export default function MatchupAnalyzer({ embedded = false }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
                   <div>
                     <div style={{ fontSize: 11, color: T.textLow, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Projected edge</div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: favColor, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: favColor, letterSpacing: '-0.02em', lineHeight: 1.1, textShadow: textHaloShadow(favColor) }}>
                       {favMeta.fullName}
                     </div>
                     <div style={{ fontSize: 14, color: T.textMd, marginTop: 4 }}>
@@ -559,9 +561,9 @@ export default function MatchupAnalyzer({ embedded = false }) {
             <div style={CARD}>
               <div style={SECTION_TITLE}>Key numbers</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 116px 1fr', padding: '0 0 6px' }}>
-                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorA }}>{metaA.abbr}</div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorA, textShadow: textHaloShadow(colorA) }}>{metaA.abbr}</div>
                 <div />
-                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorB }}>{metaB.abbr}</div>
+                <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorB, textShadow: textHaloShadow(colorB) }}>{metaB.abbr}</div>
               </div>
               {[
                 { key: 'net_efficiency', label: 'Net Eff', info: { label: 'Net Efficiency', text: 'Offense minus defense. The single best one-number summary of team strength; higher is better.' } },
@@ -582,15 +584,15 @@ export default function MatchupAnalyzer({ embedded = false }) {
             <div style={CARD}>
               <div style={SECTION_TITLE}>Profile Radar</div>
               <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
-                <span style={{ fontSize: 11, color: colorA }}>● {metaA.abbr}</span>
-                <span style={{ fontSize: 11, color: colorB }}>● {metaB.abbr}</span>
+                <span style={{ fontSize: 11, color: colorA, textShadow: textHaloShadow(colorA) }}>● {metaA.abbr}</span>
+                <span style={{ fontSize: 11, color: colorB, textShadow: textHaloShadow(colorB) }}>● {metaB.abbr}</span>
               </div>
               <ResponsiveContainer width="100%" height={240}>
                 <RadarChart data={radarData} margin={{ top: 8, right: 24, bottom: 8, left: 24 }}>
                   <PolarGrid stroke="#2c2c2c" />
                   <PolarAngleAxis dataKey="axis" tick={{ fill: '#6b7280', fontSize: 11 }} />
-                  <Radar name={metaA.abbr} dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} isAnimationActive={false} />
-                  <Radar name={metaB.abbr} dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} isAnimationActive={false} />
+                  <Radar name={metaA.abbr} dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} dot={radarDot(colorA)} isAnimationActive={false} />
+                  <Radar name={metaB.abbr} dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} dot={radarDot(colorB)} isAnimationActive={false} />
                   <Tooltip content={<RadarTooltip metaA={metaA} metaB={metaB} colorA={colorA} colorB={colorB} />} />
                 </RadarChart>
               </ResponsiveContainer>
@@ -622,7 +624,7 @@ export default function MatchupAnalyzer({ embedded = false }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, borderBottom: `1px solid ${T.border}`, paddingBottom: 12 }}>
                     <TeamBadge school={school} size="md" showName={false} />
                     <div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color }}>{meta.fullName}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color, textShadow: textHaloShadow(color) }}>{meta.fullName}</div>
                       <div style={{ fontSize: 11, color: T.textMin }}>{year}</div>
                     </div>
                   </div>
@@ -660,7 +662,7 @@ export default function MatchupAnalyzer({ embedded = false }) {
             { school: analyzerTeamB, year: analyzerYearB, squad: squadB, color: colorB, meta: metaB, notable: notableB },
           ].map(({ school, squad, color, meta, year, notable }, i) => (
             <div key={i}>
-              <div style={{ fontSize: 14, fontWeight: 700, color, marginBottom: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color, marginBottom: 14, textShadow: textHaloShadow(color) }}>
                 {meta.fullName} · {year}
               </div>
               {/* Notable players */}

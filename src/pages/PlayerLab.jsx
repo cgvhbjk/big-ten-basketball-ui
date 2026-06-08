@@ -8,6 +8,7 @@ import players from '../data/players.json'
 import nbaCombine from '../data/nbaCombine.json'
 import { NBA_COMBINE_META } from '../data/nbaCombineMeta.js'
 import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, PLAYER_METRICS } from '../data/constants.js'
+import { radarDot, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import usePlayerStore from '../store/usePlayerStore.js'
 import GlossaryTooltip from '../components/shared/GlossaryTooltip.jsx'
 import PageHeader from '../components/shared/PageHeader.jsx'
@@ -350,8 +351,8 @@ export default function PlayerLab() {
 
   const playerKeyRef = useRef(null)
 
-  const colorA = SCHOOL_COLORS[selectedSchool]
-  const colorB = SCHOOL_COLORS[compareSchool]
+  const colorA = resolveTeamColor(selectedSchool)
+  const colorB = resolveTeamColor(compareSchool)
 
   const schoolPlayers = useMemo(() =>
     players.filter(p => p.school === selectedSchool && p.year === selectedYear)
@@ -568,15 +569,15 @@ export default function PlayerLab() {
           {player && comparePlayer && (
             <div style={{ ...CARD, marginBottom: 20, padding: '14px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 32, marginBottom: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: colorA }}>— {player.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: colorB }}>— {comparePlayer.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: colorA, textShadow: textHaloShadow(colorA) }}>— {player.name}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: colorB, textShadow: textHaloShadow(colorB) }}>— {comparePlayer.name}</span>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <RadarChart data={dualRadarData} margin={{ top: 8, right: 30, bottom: 8, left: 30 }}>
                   <PolarGrid stroke={T.border} />
                   <PolarAngleAxis dataKey="axis" tick={{ fill: T.textLow, fontSize: 10 }} />
-                  <Radar dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Radar dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Radar dataKey="A" stroke={colorA} fill={colorA} fillOpacity={0.18} strokeWidth={2} dot={radarDot(colorA)} isAnimationActive={false} />
+                  <Radar dataKey="B" stroke={colorB} fill={colorB} fillOpacity={0.18} strokeWidth={2} dot={radarDot(colorB)} isAnimationActive={false} />
                   <Tooltip
                     contentStyle={{ background: T.surf2, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 11 }}
                     formatter={(v, key) => [(v * 100).toFixed(0) + 'th pctile', key === 'A' ? player.name.split(' ').slice(-1)[0] : comparePlayer.name.split(' ').slice(-1)[0]]}
@@ -594,7 +595,7 @@ export default function PlayerLab() {
               <div style={CARD}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: `1px solid ${T.border}`, paddingBottom: 16 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: colorA }}>{player.name}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: colorA, textShadow: textHaloShadow(colorA) }}>{player.name}</div>
                     <div style={{ fontSize: 13, color: T.textMd, marginTop: 3 }}>{player.pos_type} · {player.class_yr} · {inchesToFtIn(heightIn)}</div>
                     <div style={{ fontSize: 12, color: T.textMin, marginTop: 2 }}>{player.hometown}</div>
                   </div>
@@ -628,7 +629,7 @@ export default function PlayerLab() {
                       <RadarChart data={radarData} margin={{ top: 4, right: 20, bottom: 4, left: 20 }}>
                         <PolarGrid stroke={T.border} />
                         <PolarAngleAxis dataKey="axis" tick={{ fill: T.textLow, fontSize: 10 }} />
-                        <Radar dataKey="Player" stroke={colorA} fill={colorA} fillOpacity={0.22} strokeWidth={2} isAnimationActive={false} />
+                        <Radar dataKey="Player" stroke={colorA} fill={colorA} fillOpacity={0.22} strokeWidth={2} dot={radarDot(colorA)} isAnimationActive={false} />
                         <Tooltip contentStyle={{ background: T.surf2, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12 }} formatter={v => [(v * 100).toFixed(0) + 'th pctile', '']} />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -656,7 +657,7 @@ export default function PlayerLab() {
               <div style={CARD}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, borderBottom: `1px solid ${T.border}`, paddingBottom: 16 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: colorB }}>{comparePlayer.name}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: colorB, textShadow: textHaloShadow(colorB) }}>{comparePlayer.name}</div>
                     <div style={{ fontSize: 13, color: T.textMd, marginTop: 3 }}>{comparePlayer.pos_type} · {comparePlayer.class_yr} · {inchesToFtIn(compareHeightIn)}</div>
                     <div style={{ fontSize: 12, color: T.textMin, marginTop: 2 }}>{comparePlayer.hometown}</div>
                   </div>
@@ -785,7 +786,7 @@ export default function PlayerLab() {
               <div style={{ ...CARD, marginBottom: 20 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: colorA }}>{player.name}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: colorA, textShadow: textHaloShadow(colorA) }}>{player.name}</div>
                     <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 2 }}>
                       {player.pos_type} · {player.class_yr} · {inchesToFtIn(heightIn)}{player.weight_lbs ? ` · ${player.weight_lbs} lbs` : ''} · {player.min_pg?.toFixed(1)} mpg
                     </div>
