@@ -8,6 +8,7 @@ import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, TEAM_METRIC_MAP } from '../
 import useStore from '../store/useStore.js'
 import usePlayerStore from '../store/usePlayerStore.js'
 import TeamBadge from '../components/shared/TeamBadge.jsx'
+import InfoTooltip from '../components/InfoTooltip.jsx'
 import StatCard from '../components/shared/StatCard.jsx'
 import PageHeader from '../components/shared/PageHeader.jsx'
 import Accordion from '../components/shared/Accordion.jsx'
@@ -107,7 +108,7 @@ function inchesToFtIn(inches) {
 // CompareRow — one head-to-head stat as a calm "A · label · B" row. The
 // winner keeps full weight with a ▸/◂ arrow pointing at it; the loser dims.
 // Far lighter than a grid of boxed StatCards for the core-numbers view.
-function CompareRow({ label, a, b, colorA, colorB, higherBetter, fmt }) {
+function CompareRow({ label, a, b, colorA, colorB, higherBetter, fmt, info }) {
   const f = (v) => (v == null ? '—' : fmt ? fmt(v) : v.toFixed(1))
   let aWins = null
   if (higherBetter !== null && a != null && b != null && a !== b) aWins = higherBetter ? a > b : a < b
@@ -126,7 +127,10 @@ function CompareRow({ label, a, b, colorA, colorB, higherBetter, fmt }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 116px 1fr', alignItems: 'center', padding: '13px 0', borderTop: `1px solid ${T.border}` }}>
       <div style={{ textAlign: 'center' }}>{cell(f(a), colorA, aWins === true)}</div>
-      <div style={{ textAlign: 'center', fontSize: 11, color: T.textLow, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 11, color: T.textLow, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+        {info && <InfoTooltip label={info.label} text={info.text} />}
+      </div>
       <div style={{ textAlign: 'center' }}>{cell(f(b), colorB, aWins === false)}</div>
     </div>
   )
@@ -560,14 +564,14 @@ export default function MatchupAnalyzer({ embedded = false }) {
                 <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: colorB }}>{metaB.abbr}</div>
               </div>
               {[
-                { key: 'net_efficiency', label: 'Net Eff' },
-                { key: 'adjoe',          label: 'Offense' },
-                { key: 'adjde',          label: 'Defense' },
+                { key: 'net_efficiency', label: 'Net Eff', info: { label: 'Net Efficiency', text: 'Offense minus defense. The single best one-number summary of team strength; higher is better.' } },
+                { key: 'adjoe',          label: 'Offense', info: { label: 'Offense (Adjusted Offensive Efficiency)', text: 'Adjusted offensive efficiency — points scored per 100 possessions, adjusted for opponent strength. Higher is better.' } },
+                { key: 'adjde',          label: 'Defense', info: { label: 'Defense (Adjusted Defensive Efficiency)', text: 'Adjusted defensive efficiency — points allowed per 100 possessions, adjusted for opponent strength. Lower is better.' } },
                 { key: 'tempo',          label: 'Tempo' },
-              ].map(({ key, label }) => {
+              ].map(({ key, label, info }) => {
                 const m = TEAM_METRIC_MAP[key]
                 return (
-                  <CompareRow key={key} label={label}
+                  <CompareRow key={key} label={label} info={info}
                     a={seasonA?.[key]} b={seasonB?.[key]}
                     colorA={colorA} colorB={colorB}
                     higherBetter={m.higherBetter} fmt={m.fmt} />
