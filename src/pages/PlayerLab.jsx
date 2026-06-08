@@ -8,6 +8,7 @@ import players from '../data/players.json'
 import nbaCombine from '../data/nbaCombine.json'
 import { NBA_COMBINE_META } from '../data/nbaCombineMeta.js'
 import { SCHOOLS, SCHOOL_META, SCHOOL_COLORS, YEARS, PLAYER_METRICS } from '../data/constants.js'
+import { getCoach } from '../data/coachMeta.js'
 import { radarDot, textHaloShadow, resolveTeamColor } from '../utils/teamColor.js'
 import usePlayerStore from '../store/usePlayerStore.js'
 import GlossaryTooltip from '../components/shared/GlossaryTooltip.jsx'
@@ -53,16 +54,20 @@ const RADAR_DIMS = [
   { key: 'stl',  label: 'Steals',     higherBetter: true  },
 ]
 
-function positionBreakdownWeighted(allPlayers, year) {
-  // year === null means use allPlayers as-is (already pre-filtered by caller)
-  const pool = year === null
-    ? allPlayers.filter(p => p.min_pg >= 8 && p.pos_type)
-    : allPlayers.filter(p => p.year === year && p.min_pg >= 8 && p.pos_type)
+// Minute-weighted stat aggregates for an arbitrary grouping of players.
+// `groupOf(player)` returns { key, axis, name } for the group a player belongs
+// to (key dedupes, axis = compact x-axis label, name = full label for cards),
+// or null to exclude. Players under 8 min/g are dropped so low-sample bench
+// lines don't skew the weighted averages. Output keeps the `pos` field name so
+// the chart (dataKey="pos") and cards work across every grouping mode.
+function groupBreakdownWeighted(pool, groupOf) {
   const groups = {}
   for (const p of pool) {
-    const g = p.pos_type
-    if (!groups[g]) groups[g] = []
-    groups[g].push(p)
+    if (!(p.min_pg >= 8)) continue
+    const g = groupOf(p)
+    if (!g || g.key == null) continue
+    if (!groups[g.key]) groups[g.key] = { axis: g.axis, name: g.name, ps: [] }
+    groups[g.key].ps.push(p)
   }
 
   function wAvg(ps, key) {
@@ -72,9 +77,9 @@ function positionBreakdownWeighted(allPlayers, year) {
     return valid.reduce((s, p) => s + p[key] * p.min_pg, 0) / total
   }
 
-  return Object.entries(groups)
-    .map(([pos, ps]) => ({
-      pos, n: ps.length,
+  return Object.values(groups)
+    .map(({ axis, name, ps }) => ({
+      pos: axis, name, n: ps.length,
       pts:  +wAvg(ps, 'pts').toFixed(1),
       ortg: +wAvg(ps, 'ortg').toFixed(1),
       efg:  +wAvg(ps, 'efg').toFixed(1),
@@ -82,6 +87,27 @@ function positionBreakdownWeighted(allPlayers, year) {
     }))
     .filter(g => g.n >= 2)
     .sort((a, b) => b.ortg - a.ortg)
+}
+
+// Group-key resolvers for the three Positions-tab grouping modes. "position"
+// reproduces the original behavior exactly (group by Barttorvik position type).
+const POS_GROUPERS = {
+  position: p => p.pos_type ? { key: p.pos_type, axis: p.pos_type, name: p.pos_type } : null,
+  school:   p => SCHOOL_META[p.school]
+    ? { key: p.school, axis: SCHOOL_META[p.school].abbr, name: SCHOOL_META[p.school].fullName }
+    : null,
+  coach:    p => {
+    const name = getCoach(p.school, p.year)?.name
+    if (!name || name === 'Unknown') return null
+    return { key: name, axis: name.split(' ').slice(-1)[0], name }
+  },
+}
+
+// Display nouns per grouping, for chart titles and takeaway copy.
+const POS_GROUP_LABEL = {
+  position: { by: 'Position Type', title: 'Position', what: 'position type', plural: 'position types' },
+  school:   { by: 'School',        title: 'School',   what: 'school',        plural: 'schools' },
+  coach:    { by: 'Coach',         title: 'Coach',    what: 'coach',         plural: 'coaches' },
 }
 
 const PRIORITY_COLORS = { Critical: '#ef4444', High: '#f97316', Medium: '#f59e0b', Maintenance: '#10b981' }
@@ -330,6 +356,7 @@ export default function PlayerLab() {
 
   const [tab,              setTab]              = useState('profile')
   const [posYear,          setPosYear]          = useState(0)
+  const [posGroup,         setPosGroup]         = useState('position')
   const [combineInputs,    setCombineInputs]    = useState({})
   const [comparePlayerName,setComparePlayerName] = useState(null)
 
@@ -429,11 +456,12 @@ export default function PlayerLab() {
     })
   }, [comparePlayer, norms])
 
-  // posYear === 0 means aggregate all years; otherwise filter to the specific year
+  // posYear === 0 means aggregate all years; otherwise filter to the specific
+  // year. posGroup picks the grouping dimension (position / school / coach).
   const posBiodata = useMemo(() => {
     const pool = posYear === 0 ? players : players.filter(p => p.year === posYear)
-    return positionBreakdownWeighted(pool, null)   // null = don't filter by year inside
-  }, [posYear])
+    return groupBreakdownWeighted(pool, POS_GROUPERS[posGroup] ?? POS_GROUPERS.position)
+  }, [posYear, posGroup])
 
   // S&C training plan — re-prioritised dynamically if combine inputs are entered
   const trainingPlan = useMemo(() => generateTrainingPlan(player, combineInputs), [player, combineInputs])
@@ -714,6 +742,19 @@ export default function PlayerLab() {
       {/* ── Positions Tab ── */}
       {tab === 'positions' && (
         <div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: T.textLow }}>Group by:</span>
+            {[
+              ['position', 'All (by position)'],
+              ['school',   'By school'],
+              ['coach',    'By coach'],
+            ].map(([val, label]) => (
+              <button key={val} onClick={() => setPosGroup(val)}
+                style={{ ...BTN(posGroup === val), padding: '5px 12px', fontSize: 12 }}>
+                {label}
+              </button>
+            ))}
+          </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: T.textLow }}>Season:</span>
             {[0, ...YEARS].map(y => (
@@ -730,8 +771,8 @@ export default function PlayerLab() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14, marginBottom: 28 }}>
             {posBiodata.map(g => (
-              <div key={g.pos} style={{ background: '#111111', border: '1px solid #2c2c2c', borderRadius: 10, padding: '16px 18px' }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#a5b4fc', marginBottom: 4 }}>{g.pos}</div>
+              <div key={g.name} style={{ background: '#111111', border: '1px solid #2c2c2c', borderRadius: 10, padding: '16px 18px' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#a5b4fc', marginBottom: 4 }}>{g.name}</div>
                 <div style={{ fontSize: 11, color: '#4b5563', marginBottom: 12 }}>n={g.n} players</div>
                 {[
                   ['Pts/G',  g.pts],
@@ -750,7 +791,7 @@ export default function PlayerLab() {
 
           <div style={{ background: '#111111', border: '1px solid #2c2c2c', borderRadius: 12, padding: '20px 24px' }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#a5b4fc', marginBottom: 4 }}>
-              Offensive Rating &amp; Scoring by Position Type
+              Offensive Rating &amp; Scoring by {POS_GROUP_LABEL[posGroup].by}
               <span style={{ fontSize: 11, fontWeight: 400, color: T.textLow, marginLeft: 8 }}>
                 {posYear === 0 ? 'All Years 2022–2025' : posYear}
               </span>
@@ -1067,7 +1108,7 @@ export default function PlayerLab() {
       )}
 
       {tab === 'positions' && (
-        <PageConclusions title="Position Breakdown Takeaways" conclusions={(() => {
+        <PageConclusions title={`${POS_GROUP_LABEL[posGroup].title} Breakdown Takeaways`} conclusions={(() => {
           if (!posBiodata.length) return []
           const byOrtg  = [...posBiodata].sort((a, b) => b.ortg - a.ortg)
           const byPts   = [...posBiodata].sort((a, b) => b.pts  - a.pts)
@@ -1080,7 +1121,7 @@ export default function PlayerLab() {
             },
             {
               label: 'Top Scorers',
-              text: `${byPts[0].pos} averages the most points per game (${byPts[0].pts} pts/g). Use this to identify where offensive load is concentrated by position type.`,
+              text: `${byPts[0].pos} averages the most points per game (${byPts[0].pts} pts/g). Use this to identify where offensive load is concentrated by ${POS_GROUP_LABEL[posGroup].what}.`,
               color: T.green,
             },
             {
@@ -1094,7 +1135,7 @@ export default function PlayerLab() {
               const eFGSpread = (Math.max(...posBiodata.map(g => g.efg)) - Math.min(...posBiodata.map(g => g.efg))).toFixed(1)
               return {
                 label: 'Roster Depth',
-                text: `${totalN} qualifying players across ${posBiodata.length} position types${posYear === 0 ? ' (2022–2025)' : ` in ${posYear}`}. ${largest.pos} is the deepest group (n=${largest.n}). eFG% spread across positions: ${eFGSpread}pp — ${parseFloat(eFGSpread) >= 5 ? 'a meaningful efficiency gap suggesting positional shooting imbalance' : 'positions are relatively balanced in shooting efficiency'}.`,
+                text: `${totalN} qualifying players across ${posBiodata.length} ${POS_GROUP_LABEL[posGroup].plural}${posYear === 0 ? ' (2022–2025)' : ` in ${posYear}`}. ${largest.pos} is the deepest group (n=${largest.n}). eFG% spread across ${POS_GROUP_LABEL[posGroup].plural}: ${eFGSpread}pp — ${parseFloat(eFGSpread) >= 5 ? 'a meaningful efficiency gap suggesting a shooting imbalance' : 'relatively balanced shooting efficiency'}.`,
                 color: T.textMd,
               }
             })(),
