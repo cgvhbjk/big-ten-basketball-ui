@@ -1,5 +1,7 @@
 # Big Ten Basketball Analytics
 
+**Live:** https://big-ten-basketball-ui.vercel.app
+
 A React web app for exploring Big Ten men's basketball data (2022–2026). Built on Barttorvik team and player statistics, it surfaces metric correlations, playing-style archetypes, roster composition insights, and individual player power ratings across the conference. Seasons are labeled by their spring year (e.g. 2026 = the 2025–26 season), and the app opens on the most recent season by default.
 
 > **Conference scope.** This is the 18-team Big Ten after the 2024–25 realignment. The four West-Coast newcomers — UCLA, USC, Oregon, Washington — only carry Big Ten data from the 2025 season onward (they were Pac-12 before), so their earlier seasons are intentionally absent. Membership each season is taken from Barttorvik's conference code, so the panel is naturally 14 teams in 2022–24 and 18 from 2025 on.
